@@ -11,12 +11,14 @@ import ProtectedRoute from './components/ProtectedRoute';
 function App() {
   return (
     <BrowserRouter>
+    
       <Routes>
         {/* Routes publiques */}
         <Route path="/" element={<Landing />} />
         <Route path="/home" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        
         
         {/* Routes protégées - Étudiant */}
         <Route 
@@ -81,6 +83,7 @@ function App() {
         {/* Route 404 */}
         <Route path="*" element={<Error404 />} />
       </Routes>
+      
     </BrowserRouter>
   );
 }

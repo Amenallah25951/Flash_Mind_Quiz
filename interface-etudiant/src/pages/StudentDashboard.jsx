@@ -1,70 +1,72 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { authService } from '../services/authService';
+import { quizService } from '../services/quizService';
+import { studentService } from '../services/studentService';
 
 export default function StudentDashboard() {
   const [quizCode, setQuizCode] = useState("");
   const [showCodeInput, setShowCodeInput] = useState(false);
+  const [publicQuizzes, setPublicQuizzes] = useState([]);
+  const [stats, setStats] = useState({
+    totalQuizzes: 0,
+    averageScore: 0,
+    currentStreak: 0
+  });
+  const [loading, setLoading] = useState(true);
   
-  // Données de l'étudiant (à remplacer par les vraies données de l'API)
-  const studentName = "Amen Allah El Azzouni";
-  const studentEmoji = "😀";
+  const user = authService.getCurrentUser();
+  const studentName = user?.firstName + " " + user?.lastName || "Étudiant";
+  const studentEmoji = "😀"; // Vous pouvez le stocker dans la base de données
 
-  // Quiz publics disponibles (à remplacer par les données de l'API)
-  const publicQuizzes = [
-    {
-      id: 1,
-      title: "React.js Fundamentals",
-      description: "Test your knowledge of React basics",
-      questions: 10,
-      duration: 15,
-      difficulty: "Facile",
-      participants: 245
-    },
-    {
-      id: 2,
-      title: "JavaScript ES6+",
-      description: "Modern JavaScript features and syntax",
-      questions: 15,
-      duration: 20,
-      difficulty: "Moyen",
-      participants: 189
-    },
-    {
-      id: 3,
-      title: "CSS Flexbox & Grid",
-      description: "Master modern CSS layout techniques",
-      questions: 12,
-      duration: 18,
-      difficulty: "Facile",
-      participants: 312
-    },
-    {
-      id: 4,
-      title: "Node.js Backend",
-      description: "Server-side JavaScript with Node",
-      questions: 20,
-      duration: 25,
-      difficulty: "Difficile",
-      participants: 156
+  // Charger les données au montage du composant
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      
+      // Charger les quiz publics
+      const quizzesData = await quizService.getPublicQuizzes();
+      setPublicQuizzes(quizzesData);
+      
+      // Charger les statistiques
+      const statsData = await studentService.getStats();
+      setStats({
+        totalQuizzes: statsData.totalQuizzes,
+        averageScore: statsData.averageScore,
+        currentStreak: statsData.currentStreak
+      });
+      
+      setLoading(false);
+    } catch (error) {
+      console.error("Erreur lors du chargement des données:", error);
+      setLoading(false);
     }
-  ];
+  };
 
-  const handleJoinByCode = () => {
+  const handleJoinByCode = async () => {
     if (!quizCode.trim()) {
       alert("Veuillez entrer un code de quiz !");
       return;
     }
-    console.log("Rejoindre le quiz avec le code:", quizCode);
-    // Logique pour rejoindre le quiz
+    
+    try {
+      const quiz = await quizService.getQuizByCode(quizCode);
+      // Rediriger vers la page du quiz
+      window.location.href = `/student/quiz/${quiz.id}`;
+    } catch (error) {
+      alert("Code de quiz invalide ou quiz introuvable");
+    }
   };
 
   const handleStartQuiz = (quizId) => {
-    console.log("Démarrer le quiz:", quizId);
-    // Redirection vers la page du quiz
+    window.location.href = `/student/quiz/${quizId}`;
   };
 
   const handleLogout = () => {
-    console.log("Déconnexion");
-    window.location.href = '/login';
+    authService.logout();
   };
 
   const getDifficultyColor = (difficulty) => {
@@ -75,6 +77,7 @@ export default function StudentDashboard() {
       default: return "#6c757d";
     }
   };
+
 
   const styles = `
     * {
@@ -119,6 +122,7 @@ export default function StudentDashboard() {
       }
     }
   `;
+  
 
   return (
     <>
@@ -514,7 +518,7 @@ export default function StudentDashboard() {
 
         {/* Footer */}
         <div style={{
-          textAlign: 'center',
+          textAlign: 'center',  
           color: 'white',
           fontSize: '14px',
           padding: '20px',

@@ -1,140 +1,130 @@
 import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { quizService } from '../services/quizService';
+import { authService } from '../services/authService';
 
-export default function Quiz() {
+export default function QuizPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  
+  const [quiz, setQuiz] = useState(null);
+  const [questions, setQuestions] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(30);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [score, setScore] = useState(0);
   const [answers, setAnswers] = useState([]);
-  const [showResults, setShowResults] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [quizStarted, setQuizStarted] = useState(false);
   const [totalTime, setTotalTime] = useState(0);
 
-  const questions = [
-    {
-      id: 1,
-      question: "Which of the following is used in React.js to increase performance?",
-      options: ["Virtual DOM", "JSX", "Components", "Props"],
-      correctAnswer: "Virtual DOM"
-    },
-    {
-      id: 2,
-      question: "What is the correct syntax to create a functional component in React?",
-      options: ["function MyComponent() {}", "class MyComponent {}", "const MyComponent = {}", "component MyComponent()"],
-      correctAnswer: "function MyComponent() {}"
-    },
-    {
-      id: 3,
-      question: "Which hook is used to manage state in functional components?",
-      options: ["useEffect", "useState", "useContext", "useReducer"],
-      correctAnswer: "useState"
-    },
-    {
-      id: 4,
-      question: "What does JSX stand for?",
-      options: ["JavaScript XML", "JavaScript Extension", "Java Syntax Extension", "JavaScript Execute"],
-      correctAnswer: "JavaScript XML"
-    },
-    {
-      id: 5,
-      question: "Which method is used to update state in React?",
-      options: ["updateState()", "setState()", "modifyState()", "changeState()"],
-      correctAnswer: "setState()"
-    },
-    {
-      id: 6,
-      question: "What is the purpose of useEffect hook?",
-      options: ["To create state", "To handle side effects", "To create refs", "To optimize performance"],
-      correctAnswer: "To handle side effects"
-    },
-    {
-      id: 7,
-      question: "How do you pass data from parent to child component?",
-      options: ["Using state", "Using props", "Using context", "Using refs"],
-      correctAnswer: "Using props"
-    },
-    {
-      id: 8,
-      question: "What is the correct way to handle events in React?",
-      options: ["onclick='handleClick()'", "onClick={handleClick}", "onClick='handleClick()'", "onCLick={handleClick()}"],
-      correctAnswer: "onClick={handleClick}"
-    },
-    {
-      id: 9,
-      question: "Which of these is NOT a React hook?",
-      options: ["useState", "useEffect", "useComponent", "useContext"],
-      correctAnswer: "useComponent"
-    },
-    {
-      id: 10,
-      question: "What does React.Fragment do?",
-      options: ["Creates a new component", "Groups multiple elements without adding extra nodes", "Handles errors", "Manages state"],
-      correctAnswer: "Groups multiple elements without adding extra nodes"
-    }
-  ];
-
-  const totalQuestions = questions.length;
-  const progressPercentage = ((currentQuestion + 1) / totalQuestions) * 100;
+  const user = authService.getCurrentUser();
 
   useEffect(() => {
-    if (timeRemaining > 0 && !showResults) {
+    loadQuiz();
+  }, [id]);
+
+  useEffect(() => {
+    if (quizStarted && timeRemaining > 0 && quiz) {
       const timer = setTimeout(() => {
         setTimeRemaining(timeRemaining - 1);
         setTotalTime(totalTime + 1);
       }, 1000);
       return () => clearTimeout(timer);
-    } else if (timeRemaining === 0 && !showResults) {
+    } else if (timeRemaining === 0 && quizStarted) {
       handleNext();
     }
-  }, [timeRemaining, showResults]);
+  }, [timeRemaining, quizStarted, quiz]);
+
+  const loadQuiz = async () => {
+    try {
+      const data = await quizService.getQuizById(id);
+      setQuiz(data);
+      
+      // Simuler des questions (à remplacer par les vraies données de l'API)
+      const mockQuestions = [
+        {
+          id: 1,
+          questionText: data.title + " - Question 1",
+          responses: [
+            { id: 1, responseText: "Option A", isCorrect: true },
+            { id: 2, responseText: "Option B", isCorrect: false },
+            { id: 3, responseText: "Option C", isCorrect: false },
+            { id: 4, responseText: "Option D", isCorrect: false }
+          ]
+        },
+        // Ajouter plus de questions selon vos besoins
+      ];
+      
+      setQuestions(mockQuestions);
+      setLoading(false);
+    } catch (error) {
+      console.error("Erreur lors du chargement du quiz:", error);
+      alert("Erreur lors du chargement du quiz");
+      navigate('/student/dashboard');
+    }
+  };
+
+  const handleStartQuiz = () => {
+    setQuizStarted(true);
+    setTimeRemaining(30);
+  };
 
   const handleAnswerSelect = (answer) => {
     setSelectedAnswer(answer);
   };
 
   const handleNext = () => {
-    const isCorrect = selectedAnswer === questions[currentQuestion].correctAnswer;
-    
-    if (isCorrect && selectedAnswer !== null) {
-      setScore(score + 1);
-    }
+    const newAnswers = [...answers];
+    newAnswers[currentQuestion] = {
+      questionId: questions[currentQuestion].id,
+      selectedAnswer: selectedAnswer,
+      isCorrect: selectedAnswer?.isCorrect || false
+    };
+    setAnswers(newAnswers);
 
-    setAnswers([...answers, {
-      question: questions[currentQuestion].question,
-      selectedAnswer: selectedAnswer || "No answer",
-      correctAnswer: questions[currentQuestion].correctAnswer,
-      isCorrect: isCorrect
-    }]);
-
-    if (currentQuestion < totalQuestions - 1) {
+    if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(currentQuestion + 1);
       setSelectedAnswer(null);
       setTimeRemaining(30);
     } else {
-      setShowResults(true);
+      finishQuiz(newAnswers);
     }
   };
 
   const handlePrevious = () => {
     if (currentQuestion > 0) {
       setCurrentQuestion(currentQuestion - 1);
-      setSelectedAnswer(null);
+      setSelectedAnswer(answers[currentQuestion - 1]?.selectedAnswer || null);
       setTimeRemaining(30);
     }
   };
 
-  const handleReplay = () => {
-    setCurrentQuestion(0);
-    setTimeRemaining(30);
-    setSelectedAnswer(null);
-    setScore(0);
-    setAnswers([]);
-    setShowResults(false);
-    setTotalTime(0);
+  const finishQuiz = async (finalAnswers) => {
+    try {
+      const correctAnswers = finalAnswers.filter(a => a.isCorrect).length;
+      const score = (correctAnswers / questions.length) * 1250; // Score sur 1250 points
+      
+      const result = {
+        score: score,
+        correctAnswers: correctAnswers,
+        totalQuestions: questions.length,
+        totalTime: totalTime,
+        answers: finalAnswers
+      };
+      
+      // Sauvegarder la participation (à implémenter dans l'API)
+      // await quizService.finishQuiz(id, result);
+      
+      navigate(`/student/quiz/${id}/results`, { state: { result, quiz } });
+    } catch (error) {
+      console.error("Erreur lors de la soumission du quiz:", error);
+      alert("Erreur lors de la soumission du quiz");
+    }
   };
 
-  const handleMainMenu = () => {
-    window.location.href = '/';
-  };
+  const progressPercentage = questions.length > 0 
+    ? ((currentQuestion + 1) / questions.length) * 100 
+    : 0;
 
   const styles = `
     * {
@@ -146,42 +136,31 @@ export default function Quiz() {
       margin: 0;
       padding: 0;
     }
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .fade-in {
+      animation: fadeIn 0.6s ease-out;
+    }
     .btn {
       display: inline-block;
       font-weight: 400;
       text-align: center;
-      vertical-align: middle;
+      cursor: pointer;
       user-select: none;
       border: 1px solid transparent;
       padding: 0.375rem 0.75rem;
       font-size: 1rem;
       line-height: 1.5;
       border-radius: 0.25rem;
-      transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-      cursor: pointer;
-    }
-    .btn-light {
-      color: #212529;
-      background-color: #f8f9fa;
-      border-color: #f8f9fa;
-    }
-    .btn-light:hover {
-      background-color: #e2e6ea;
-      border-color: #dae0e5;
-    }
-    .btn-primary {
-      color: #fff;
-      background-color: #007bff;
-      border-color: #007bff;
-    }
-    .btn-secondary {
-      color: #fff;
-      background-color: #6c757d;
-      border-color: #6c757d;
-    }
-    .btn-secondary:hover {
-      background-color: #5a6268;
-      border-color: #545b62;
+      transition: all 0.3s ease;
     }
     .btn:disabled {
       opacity: 0.65;
@@ -189,30 +168,43 @@ export default function Quiz() {
     }
   `;
 
-  if (showResults) {
-    const finalScore = score * 125; // 1250 points maximum pour 10 questions
-    const minutes = Math.floor(totalTime / 60);
-    const seconds = totalTime % 60;
-    const timeElapsed = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-
+  if (loading) {
     return (
       <>
         <style>{styles}</style>
         <div style={{
           minHeight: '100vh',
-          height: '100vh',
-          width: '100vw',
-          margin: 0,
-          padding: 0,
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-          overflow: 'auto',
-          boxSizing: 'border-box',
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '20px'
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          fontSize: '24px',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '20px' }}>⏳</div>
+            Chargement du quiz...
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (!quizStarted) {
+    return (
+      <>
+        <style>{styles}</style>
+        <div style={{
+          minHeight: '100vh',
+          width: '100vw',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '20px',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
         }}>
           {/* Logo */}
           <div style={{
@@ -247,199 +239,130 @@ export default function Quiz() {
             </span>
           </div>
 
-          {/* Langue */}
-          <div style={{
-            position: 'absolute',
-            top: '20px',
-            right: '20px'
-          }}>
-            <button style={{
-              backgroundColor: '#667eea',
-              color: 'white',
-              border: 'none',
-              padding: '10px 24px',
-              borderRadius: '50rem',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '16px'
-            }}>
-              🌐 FR
-            </button>
-          </div>
-
-          {/* Results Card */}
-          <div style={{
-            backgroundColor: '#f8f9fa',
+          <div className="fade-in" style={{
+            backgroundColor: 'white',
             borderRadius: '30px',
-            padding: '40px',
+            padding: '50px 40px',
             boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
             width: '100%',
-            maxWidth: '600px',
+            maxWidth: '700px',
             textAlign: 'center'
           }}>
-            <h1 style={{
-              fontSize: '32px',
-              fontWeight: 'bold',
-              marginBottom: '10px',
-              color: '#000'
+            <div style={{
+              fontSize: '64px',
+              marginBottom: '20px'
             }}>
-              Student nickname
+              📝
+            </div>
+
+            <h1 style={{
+              fontSize: '36px',
+              fontWeight: 'bold',
+              color: '#333',
+              marginBottom: '20px'
+            }}>
+              {quiz.title}
             </h1>
 
             <p style={{
-              fontSize: '16px',
+              fontSize: '18px',
               color: '#6c757d',
-              marginBottom: '5px'
+              marginBottom: '30px',
+              lineHeight: '1.6'
             }}>
-              Final Score
+              {quiz.description}
             </p>
-            <h2 style={{
-              fontSize: '48px',
-              fontWeight: 'bold',
-              color: '#667eea',
-              marginBottom: '30px'
-            }}>
-              {finalScore}
-            </h2>
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
               gap: '20px',
-              marginBottom: '30px'
+              marginBottom: '40px',
+              padding: '20px',
+              backgroundColor: '#f8f9fa',
+              borderRadius: '15px'
             }}>
-              {/* Left Column - Achievements */}
-              <div style={{
-                backgroundColor: '#e9ecef',
-                borderRadius: '15px',
-                padding: '20px',
-                textAlign: 'left'
-              }}>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  marginBottom: '10px'
-                }}>
-                  <span style={{ fontSize: '24px' }}>🏆</span>
-                  <span style={{ fontSize: '16px', color: '#6c757d' }}>Star Winner</span>
+              <div>
+                <div style={{ fontSize: '32px', marginBottom: '5px' }}>📚</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#667eea' }}>
+                  {quiz.questionCount || questions.length}
                 </div>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <span style={{ fontSize: '24px' }}>🥉</span>
-                  <span style={{ fontSize: '16px', color: '#6c757d' }}>3rd position</span>
-                </div>
+                <div style={{ fontSize: '14px', color: '#6c757d' }}>Questions</div>
               </div>
 
-              {/* Right Column - Summary */}
-              <div style={{
-                backgroundColor: '#e9ecef',
-                borderRadius: '15px',
-                padding: '20px',
-                textAlign: 'left'
-              }}>
-                <h4 style={{
-                  fontSize: '14px',
-                  fontWeight: 'bold',
-                  marginBottom: '15px',
-                  color: '#000'
-                }}>
-                  Summary of responses
-                </h4>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ color: '#28a745', fontSize: '18px' }}>✓</span>
-                    <span style={{ fontSize: '14px', color: '#6c757d' }}>Correct answers</span>
-                  </div>
-                  <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{score}</span>
+              <div>
+                <div style={{ fontSize: '32px', marginBottom: '5px' }}>⏱️</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#667eea' }}>
+                  {quiz.duration}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '18px' }}>⚪</span>
-                    <span style={{ fontSize: '14px', color: '#6c757d' }}>Total questions</span>
-                  </div>
-                  <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{totalQuestions}</span>
+                <div style={{ fontSize: '14px', color: '#6c757d' }}>Minutes</div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '32px', marginBottom: '5px' }}>🏆</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#667eea' }}>
+                  1250
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '18px' }}>⏱️</span>
-                    <span style={{ fontSize: '14px', color: '#6c757d' }}>Time elapsed</span>
-                  </div>
-                  <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{timeElapsed}</span>
-                </div>
+                <div style={{ fontSize: '14px', color: '#6c757d' }}>Points Max</div>
               </div>
             </div>
 
-            {/* Buttons */}
+            <div style={{
+              backgroundColor: '#fff3cd',
+              border: '1px solid #ffc107',
+              borderRadius: '10px',
+              padding: '15px',
+              marginBottom: '30px',
+              textAlign: 'left'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#856404' }}>
+                ⚠️ Instructions :
+              </div>
+              <ul style={{ margin: 0, paddingLeft: '20px', color: '#856404' }}>
+                <li>Vous avez 30 secondes par question</li>
+                <li>Une seule réponse par question</li>
+                <li>Impossible de revenir en arrière après validation</li>
+                <li>Le quiz commence dès que vous cliquez sur "Commencer"</li>
+              </ul>
+            </div>
+
             <button
-              onClick={handleReplay}
+              onClick={handleStartQuiz}
               style={{
                 width: '100%',
-                padding: '15px',
-                fontSize: '18px',
+                padding: '18px',
+                fontSize: '20px',
                 fontWeight: 'bold',
                 color: 'white',
                 backgroundColor: '#17a2b8',
                 border: 'none',
-                borderRadius: '12px',
+                borderRadius: '15px',
                 cursor: 'pointer',
-                marginBottom: '15px'
+                transition: 'all 0.3s'
               }}
+              onMouseOver={(e) => e.target.style.backgroundColor = '#138496'}
+              onMouseOut={(e) => e.target.style.backgroundColor = '#17a2b8'}
             >
-              🔄 Replay
+              Commencer le Quiz →
             </button>
 
             <button
-              onClick={handleMainMenu}
+              onClick={() => navigate('/student/dashboard')}
               style={{
                 width: '100%',
-                padding: '15px',
-                fontSize: '18px',
-                fontWeight: 'bold',
-                color: '#333',
-                backgroundColor: 'white',
-                border: '2px solid #dee2e6',
-                borderRadius: '12px',
-                cursor: 'pointer'
+                padding: '12px',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#6c757d',
+                backgroundColor: 'transparent',
+                border: 'none',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                marginTop: '15px'
               }}
             >
-              🏠 Main Menu
+              ← Retour au tableau de bord
             </button>
-          </div>
-
-          {/* Footer */}
-          <div style={{
-            position: 'absolute',
-            bottom: '20px',
-            color: 'white',
-            textAlign: 'center',
-            fontSize: '14px',
-            width: '100%',
-            padding: '0 20px'
-          }}>
-            <p style={{ marginBottom: '5px', fontWeight: 'bold' }}>
-              © 2025 Quiz Time. Tous droits réservés.
-            </p>
-            <div>
-              <a href="#" style={{
-                color: 'white',
-                textDecoration: 'underline',
-                marginRight: '10px'
-              }}>
-                Politique de confidentialité
-              </a>
-              <span>|</span>
-              <a href="#" style={{
-                color: 'white',
-                textDecoration: 'underline',
-                marginLeft: '10px'
-              }}>
-                Conditions d'utilisation
-              </a>
-            </div>
           </div>
         </div>
       </>
@@ -451,195 +374,283 @@ export default function Quiz() {
       <style>{styles}</style>
       <div style={{
         minHeight: '100vh',
-        height: '100vh',
         width: '100vw',
-        margin: 0,
-        padding: 0,
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
         overflow: 'auto',
-        boxSizing: 'border-box'
+        paddingBottom: '40px'
       }}>
-        <div style={{ padding: '20px' }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '30px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-              <div style={{
-                width: '50px',
-                height: '50px',
-                backgroundColor: 'white',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                fontSize: '24px',
-                color: '#667eea'
-              }}>
-                Q
-              </div>
-              <h1 style={{
-                color: 'white',
-                margin: 0,
-                fontSize: '32px',
-                fontWeight: 'bold',
-                letterSpacing: '1px'
-              }}>
-                FLASH_MIND
-              </h1>
+        {/* Header */}
+        <div style={{
+          padding: '20px 40px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          backdropFilter: 'blur(10px)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <div style={{
+              width: '50px',
+              height: '50px',
+              backgroundColor: 'white',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 'bold',
+              fontSize: '28px',
+              color: '#667eea'
+            }}>
+              Q
             </div>
-            <button className="btn btn-light rounded-pill px-4" style={{ fontWeight: 'bold' }}>
-              🌐 FR
-            </button>
+            <h1 style={{
+              color: 'white',
+              margin: 0,
+              fontSize: '32px',
+              fontWeight: 'bold',
+              letterSpacing: '1px'
+            }}>
+              FLASH_MIND
+            </h1>
           </div>
 
           <div style={{
-            borderRadius: '30px',
-            border: 'none',
-            backgroundColor: '#f8f9fa',
-            maxWidth: '800px',
-            margin: '0 auto',
-            padding: '40px'
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            backgroundColor: 'rgba(255, 255, 255, 0.2)',
+            padding: '8px 20px',
+            borderRadius: '25px',
+            color: 'white',
+            fontWeight: '600'
           }}>
-            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+            <span>{user?.firstName} {user?.lastName}</span>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div style={{
+          maxWidth: '900px',
+          margin: '40px auto',
+          padding: '0 20px'
+        }}>
+          {/* Timer */}
+          <div className="fade-in" style={{
+            textAlign: 'center',
+            marginBottom: '30px'
+          }}>
+            <div style={{
+              fontSize: '24px',
+              color: timeRemaining < 10 ? '#dc3545' : 'white',
+              fontWeight: 'bold',
+              animation: timeRemaining < 10 ? 'pulse 1s infinite' : 'none'
+            }}>
+              ⏱️ Temps restant: {String(Math.floor(timeRemaining / 60)).padStart(2, '0')}:{String(timeRemaining % 60).padStart(2, '0')}
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div style={{ marginBottom: '30px' }}>
+            <div style={{
+              height: '50px',
+              borderRadius: '25px',
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              overflow: 'hidden',
+              backdropFilter: 'blur(10px)'
+            }}>
               <div style={{
-                fontSize: '20px',
-                color: '#667eea',
-                fontWeight: 'bold'
+                width: `${progressPercentage}%`,
+                height: '100%',
+                backgroundColor: '#17a2b8',
+                borderRadius: '25px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                color: 'white',
+                transition: 'width 0.3s ease'
               }}>
-                ⏱️ Time Remaining: {String(Math.floor(timeRemaining / 60)).padStart(2, '0')}:{String(timeRemaining % 60).padStart(2, '0')}
+                Question {currentQuestion + 1} sur {questions.length}
               </div>
             </div>
+          </div>
 
-            <div style={{ marginBottom: '30px' }}>
-              <div style={{
-                height: '40px',
-                borderRadius: '20px',
-                backgroundColor: '#e9ecef',
-                overflow: 'hidden'
+          {/* Question Card */}
+          <div className="fade-in" style={{
+            backgroundColor: 'white',
+            borderRadius: '25px',
+            padding: '40px',
+            boxShadow: '0 15px 40px rgba(0,0,0,0.2)',
+            marginBottom: '30px'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '30px',
+              gap: '15px'
+            }}>
+              <div style={{ fontSize: '40px' }}>❓</div>
+              <h2 style={{
+                fontSize: '28px',
+                fontWeight: 'bold',
+                color: '#333',
+                margin: 0,
+                flex: 1
               }}>
-                <div style={{
-                  width: `${progressPercentage}%`,
-                  height: '100%',
-                  backgroundColor: '#667eea',
-                  borderRadius: '20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  color: 'white',
-                  transition: 'width 0.3s ease'
-                }}>
-                  Question {currentQuestion + 1} of {totalQuestions}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '15px' }}>
-                <div style={{ fontSize: '40px', marginRight: '15px' }}>⚙️</div>
-                <h3 style={{
-                  fontSize: '22px',
-                  fontWeight: 'bold',
-                  margin: 0,
-                  color: '#333'
-                }}>
-                  Question {currentQuestion + 1}: {questions[currentQuestion].question}
-                </h3>
-                <div style={{ fontSize: '40px', marginLeft: '15px' }}>💻</div>
-              </div>
+                {questions[currentQuestion]?.questionText}
+              </h2>
             </div>
 
             <h5 style={{
               color: '#667eea',
               fontWeight: 'bold',
-              marginBottom: '20px'
+              marginBottom: '20px',
+              fontSize: '18px'
             }}>
-              Options :
+              Sélectionnez une réponse :
             </h5>
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
-              gap: '15px',
-              marginBottom: '30px'
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+              gap: '20px'
             }}>
-              {questions[currentQuestion].options.map((option, index) => (
+              {questions[currentQuestion]?.responses.map((response, index) => (
                 <button
                   key={index}
-                  onClick={() => handleAnswerSelect(option)}
+                  onClick={() => handleAnswerSelect(response)}
                   style={{
-                    padding: '20px',
+                    padding: '25px',
                     fontSize: '18px',
-                    fontWeight: 'bold',
+                    fontWeight: '600',
                     borderRadius: '15px',
-                    border: selectedAnswer === option ? '3px solid #667eea' : '2px solid #dee2e6',
-                    backgroundColor: selectedAnswer === option ? '#667eea' : 'white',
-                    color: selectedAnswer === option ? 'white' : '#333',
+                    border: selectedAnswer?.id === response.id ? '3px solid #667eea' : '2px solid #dee2e6',
+                    backgroundColor: selectedAnswer?.id === response.id ? '#667eea' : 'white',
+                    color: selectedAnswer?.id === response.id ? 'white' : '#333',
                     cursor: 'pointer',
                     transition: 'all 0.3s ease',
-                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
+                    textAlign: 'left'
+                  }}
+                  onMouseOver={(e) => {
+                    if (selectedAnswer?.id !== response.id) {
+                      e.target.style.borderColor = '#667eea';
+                      e.target.style.transform = 'translateY(-2px)';
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    if (selectedAnswer?.id !== response.id) {
+                      e.target.style.borderColor = '#dee2e6';
+                      e.target.style.transform = 'translateY(0)';
+                    }
                   }}
                 >
-                  {option}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '15px'
+                  }}>
+                    <div style={{
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '50%',
+                      border: `2px solid ${selectedAnswer?.id === response.id ? 'white' : '#667eea'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: selectedAnswer?.id === response.id ? 'white' : 'transparent',
+                      color: selectedAnswer?.id === response.id ? '#667eea' : 'transparent',
+                      fontSize: '16px',
+                      fontWeight: 'bold'
+                    }}>
+                      {selectedAnswer?.id === response.id && '✓'}
+                    </div>
+                    <span style={{ flex: 1 }}>{response.responseText}</span>
+                  </div>
                 </button>
               ))}
             </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button 
-                className="btn btn-secondary"
-                onClick={handlePrevious}
-                disabled={currentQuestion === 0}
-                style={{
-                  padding: '12px 30px',
-                  borderRadius: '10px',
-                  fontWeight: 'bold'
-                }}
-              >
-                Previous
-              </button>
-              <button 
-                onClick={handleNext}
-                style={{
-                  padding: '12px 30px',
-                  borderRadius: '10px',
-                  fontWeight: 'bold',
-                  backgroundColor: '#17a2b8',
-                  color: 'white',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                {currentQuestion === totalQuestions - 1 ? 'Finish' : 'Next'}
-              </button>
-            </div>
           </div>
 
+          {/* Navigation Buttons */}
           <div style={{
-            textAlign: 'center',
-            marginTop: '30px',
-            color: 'white'
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: '20px'
           }}>
-            <p style={{ marginBottom: '10px', fontWeight: 'bold' }}>
-              © 2025 Quiz Time. Tous droits réservés.
-            </p>
-            <div>
-              <a href="#" style={{ color: 'white', textDecoration: 'underline', marginRight: '20px' }}>
-                Politique de confidentialité
-              </a>
-              <a href="#" style={{ color: 'white', textDecoration: 'underline' }}>
-                Conditions d'utilisation
-              </a>
-            </div>
+            <button
+              onClick={handlePrevious}
+              disabled={currentQuestion === 0}
+              style={{
+                padding: '15px 35px',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                color: 'white',
+                backgroundColor: currentQuestion === 0 ? '#6c757d' : '#667eea',
+                border: 'none',
+                borderRadius: '15px',
+                cursor: currentQuestion === 0 ? 'not-allowed' : 'pointer',
+                opacity: currentQuestion === 0 ? 0.5 : 1,
+                transition: 'all 0.3s'
+              }}
+            >
+              ← Précédent
+            </button>
+
+            <button
+              onClick={handleNext}
+              disabled={!selectedAnswer}
+              style={{
+                padding: '15px 35px',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                color: 'white',
+                backgroundColor: !selectedAnswer ? '#6c757d' : '#17a2b8',
+                border: 'none',
+                borderRadius: '15px',
+                cursor: !selectedAnswer ? 'not-allowed' : 'pointer',
+                opacity: !selectedAnswer ? 0.5 : 1,
+                transition: 'all 0.3s'
+              }}
+              onMouseOver={(e) => {
+                if (selectedAnswer) {
+                  e.target.style.backgroundColor = '#138496';
+                }
+              }}
+              onMouseOut={(e) => {
+                if (selectedAnswer) {
+                  e.target.style.backgroundColor = '#17a2b8';
+                }
+              }}
+            >
+              {currentQuestion === questions.length - 1 ? 'Terminer' : 'Suivant'} →
+            </button>
           </div>
         </div>
+
+        {/* Footer */}
+        <div style={{
+          textAlign: 'center',
+          color: 'white',
+          fontSize: '14px',
+          padding: '20px',
+          marginTop: '40px'
+        }}>
+          <p style={{ fontWeight: 'bold' }}>
+            © 2025 Flash Mind Quiz Time. Tous droits réservés.
+          </p>
+        </div>
       </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+      `}</style>
     </>
   );
 }
