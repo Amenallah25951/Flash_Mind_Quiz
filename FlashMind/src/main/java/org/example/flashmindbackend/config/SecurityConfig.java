@@ -2,6 +2,7 @@ package org.example.flashmindbackend.config;
 
 import org.example.flashmindbackend.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -17,7 +18,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
+@Slf4j
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -26,17 +29,24 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
+    private final CorsConfigurationSource corsConfigurationSource;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        log.info("🔄 Configuration de la sécurité...");
+
         http
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> cors.configure(http))
+                .cors(cors -> {
+                    log.info("✅ CORS activé avec configuration personnalisée");
+                    cors.configurationSource(corsConfigurationSource);
+                })
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/student/**").hasRole("STUDENT")
-                        .requestMatchers("/api/professor/**").hasRole("PROFESSOR")
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        // ✅ CORRIGÉ : hasAuthority() au lieu de hasRole()
+                        .requestMatchers("/api/student/**").hasAuthority("ROLE_STUDENT")
+                        .requestMatchers("/api/professor/**").hasAuthority("professor")
+                        .requestMatchers("/api/admin/**").hasAuthority("admin")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
@@ -45,6 +55,7 @@ public class SecurityConfig {
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
+        log.info("✅ Configuration de sécurité terminée");
         return http.build();
     }
 

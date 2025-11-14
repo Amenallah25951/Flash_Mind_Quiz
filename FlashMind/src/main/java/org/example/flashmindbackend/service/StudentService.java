@@ -6,10 +6,13 @@ import org.example.flashmindbackend.dto.QuizHistoryDTO;
 import org.example.flashmindbackend.entity.Participation;
 import org.example.flashmindbackend.entity.Student;
 import org.example.flashmindbackend.entity.User;
+import org.example.flashmindbackend.entity.Quiz;
 import org.example.flashmindbackend.repository.ParticipationRepository;
 import org.example.flashmindbackend.repository.StudentRepository;
 import org.example.flashmindbackend.repository.UserRepository;
+import org.example.flashmindbackend.repository.QuizRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +26,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -31,58 +35,55 @@ public class StudentService {
     private final StudentRepository studentRepository;
     private final UserRepository userRepository;
     private final ParticipationRepository participationRepository;
+    private final QuizRepository quizRepository;
 
     /**
      * Récupère un étudiant par son email
      */
     public Student getStudentByEmail(String email) {
+        log.debug("Récupération de l'étudiant avec l'email: {}", email);
+
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
+                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé avec l'email: " + email));
 
         if (user.getRole() != User.Role.student) {
-            throw new RuntimeException("User is not a student");
+            throw new RuntimeException("L'utilisateur n'est pas un étudiant");
         }
 
         return studentRepository.findByUser(user)
-                .orElseThrow(() -> new RuntimeException("Student profile not found"));
+                .orElseThrow(() -> new RuntimeException("Profil étudiant non trouvé"));
     }
 
     /**
      * Récupère un étudiant par son ID utilisateur
      */
     public Student getStudentByUserId(Integer userId) {
+        log.debug("Récupération de l'étudiant avec l'ID utilisateur: {}", userId);
+
         return studentRepository.findByUserId(userId)
-                .orElseThrow(() -> new RuntimeException("Student not found with user id: " + userId));
+                .orElseThrow(() -> new RuntimeException("Étudiant non trouvé avec l'ID utilisateur: " + userId));
     }
 
     /**
-     * Récupère les statistiques d'un étudiant
+     * Récupère les statistiques complètes d'un étudiant
      */
     public StudentStatsDTO getStudentStats(String email) {
+        log.info("Calcul des statistiques pour l'étudiant: {}", email);
+
         Student student = getStudentByEmail(email);
-        List<Participation> participations = participationRepository.findByUserId(student.getUser().getId());
+        List<Participation> participations = participationRepository.findByUserId((long) student.getUser().getId());
 
         StudentStatsDTO stats = new StudentStatsDTO();
+
+        // Informations de l'étudiant
+        stats.setStudentName(student.getFirstName() + " " + student.getLastName());
+        stats.setUsername(student.getUser().getUsername());
 
         // Nombre total de quiz complétés
         stats.setTotalQuizzes(participations.size());
 
         // Score moyen
-        if (!participations.isEmpty()) {
-            BigDecimal totalScore = participations.stream()
-                    .map(Participation::getScore)
-                    .filter(score -> score != null)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            BigDecimal averageScore = totalScore.divide(
-                    new BigDecimal(participations.size()),
-                    2,
-                    RoundingMode.HALF_UP
-            );
-            stats.setAverageScore(averageScore);
-        } else {
-            stats.setAverageScore(BigDecimal.ZERO);
-        }
+        stats.setAverageScore(calculateAverageScore(participations));
 
         // Série actuelle (streak)
         stats.setCurrentStreak(calculateStreak(participations));
@@ -96,7 +97,44 @@ public class StudentService {
         // Taux de réussite moyen (en pourcentage)
         stats.setSuccessRate(calculateSuccessRate(participations));
 
+        log.info("Statistiques calculées avec succès pour {}: {} quiz, {}% de réussite",
+                email, stats.getTotalQuizzes(), stats.getSuccessRate());
+
         return stats;
+    }
+
+    /**
+     * Récupère les statistiques détaillées d'un étudiant
+     */
+    public StudentStatsDTO getDetailedStats(String email) {
+        log.info("Récupération des statistiques détaillées pour: {}", email);
+
+        StudentStatsDTO stats = getStudentStats(email);
+
+        // Vous pouvez ajouter des statistiques supplémentaires ici
+        // Par exemple : performance par catégorie, temps moyen, etc.
+
+        return stats;
+    }
+
+    /**
+     * Calcule le score moyen
+     */
+    private BigDecimal calculateAverageScore(List<Participation> participations) {
+        if (participations.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal totalScore = participations.stream()
+                .map(Participation::getScore)
+                .filter(score -> score != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return totalScore.divide(
+                new BigDecimal(participations.size()),
+                2,
+                RoundingMode.HALF_UP
+        );
     }
 
     /**
@@ -136,6 +174,7 @@ public class StudentService {
             }
         }
 
+        log.debug("Série calculée: {} jours", streak);
         return streak;
     }
 
@@ -161,7 +200,7 @@ public class StudentService {
     }
 
     /**
-     * Calcule le taux de réussite moyen
+     * Calcule le taux de réussite moyen (en pourcentage)
      */
     private BigDecimal calculateSuccessRate(List<Participation> participations) {
         if (participations.isEmpty()) {
@@ -173,6 +212,7 @@ public class StudentService {
                 .filter(score -> score != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // Score maximum par quiz = 100
         BigDecimal maxPossibleScore = new BigDecimal(participations.size() * 100);
 
         if (maxPossibleScore.compareTo(BigDecimal.ZERO) == 0) {
@@ -188,26 +228,33 @@ public class StudentService {
      * Récupère l'historique des quiz d'un étudiant
      */
     public List<QuizHistoryDTO> getQuizHistory(String email) {
-        Student student = getStudentByEmail(email);
-        List<Participation> participations = participationRepository.findByUserId(student.getUser().getId());
+        log.info("Récupération de l'historique des quiz pour: {}", email);
 
-        return participations.stream()
+        Student student = getStudentByEmail(email);
+        List<Participation> participations = participationRepository.findByUserId((long) student.getUser().getId());
+
+        List<QuizHistoryDTO> history = participations.stream()
                 .sorted(Comparator.comparing(Participation::getCreatedAt).reversed())
                 .map(this::convertToQuizHistoryDTO)
                 .collect(Collectors.toList());
+
+        log.info("Historique récupéré: {} participations", history.size());
+        return history;
     }
 
     /**
      * Récupère les détails d'une participation spécifique
      */
     public ParticipationDTO getParticipationDetails(String email, Integer participationId) {
+        log.debug("Récupération des détails de la participation {} pour {}", participationId, email);
+
         Student student = getStudentByEmail(email);
         Participation participation = participationRepository.findById(participationId)
-                .orElseThrow(() -> new RuntimeException("Participation not found"));
+                .orElseThrow(() -> new RuntimeException("Participation non trouvée"));
 
         // Vérifier que la participation appartient bien à l'étudiant
-        if (!participation.getUser().getId().equals(student.getUser().getId())) {
-            throw new RuntimeException("Unauthorized access to participation");
+        if (!(participation.getUser().getId() ==(student.getUser().getId()))) {
+            throw new RuntimeException("Accès non autorisé à cette participation");
         }
 
         return convertToParticipationDTO(participation);
@@ -217,90 +264,95 @@ public class StudentService {
      * Met à jour le profil de l'étudiant
      */
     public Student updateStudentProfile(String email, String firstName, String lastName) {
+        log.info("Mise à jour du profil pour: {}", email);
+
         Student student = getStudentByEmail(email);
 
         if (firstName != null && !firstName.trim().isEmpty()) {
-            student.setFirstName(firstName);
+            student.setFirstName(firstName.trim());
         }
 
         if (lastName != null && !lastName.trim().isEmpty()) {
-            student.setLastName(lastName);
+            student.setLastName(lastName.trim());
         }
 
-        return studentRepository.save(student);
+        Student updatedStudent = studentRepository.save(student);
+        log.info("Profil mis à jour avec succès pour: {}", email);
+
+        return updatedStudent;
     }
 
     /**
      * Récupère le classement global des étudiants
      */
     public List<StudentStatsDTO> getGlobalLeaderboard(int limit) {
+        log.info("Récupération du classement global (limite: {})", limit);
+
         List<Student> allStudents = studentRepository.findAll();
 
-        return allStudents.stream()
+        List<StudentStatsDTO> leaderboard = allStudents.stream()
                 .map(student -> {
                     List<Participation> participations = participationRepository
-                            .findByUserId(student.getUser().getId());
+                            .findByUserId((long) student.getUser().getId());
 
                     StudentStatsDTO stats = new StudentStatsDTO();
                     stats.setStudentName(student.getFirstName() + " " + student.getLastName());
                     stats.setUsername(student.getUser().getUsername());
                     stats.setTotalQuizzes(participations.size());
-
-                    if (!participations.isEmpty()) {
-                        BigDecimal totalScore = participations.stream()
-                                .map(Participation::getScore)
-                                .filter(score -> score != null)
-                                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-                        BigDecimal averageScore = totalScore.divide(
-                                new BigDecimal(participations.size()),
-                                2,
-                                RoundingMode.HALF_UP
-                        );
-                        stats.setAverageScore(averageScore);
-                    } else {
-                        stats.setAverageScore(BigDecimal.ZERO);
-                    }
+                    stats.setAverageScore(calculateAverageScore(participations));
 
                     return stats;
                 })
+                .filter(stats -> stats.getTotalQuizzes() > 0) // Exclure les étudiants sans participation
                 .sorted(Comparator.comparing(StudentStatsDTO::getAverageScore).reversed())
                 .limit(limit)
                 .collect(Collectors.toList());
+
+        log.info("Classement récupéré: {} étudiants", leaderboard.size());
+        return leaderboard;
     }
 
     /**
-     * Récupère les quiz recommandés pour un étudiant
+     * Récupère les étudiants les plus actifs
      */
-    public List<QuizHistoryDTO> getRecommendedQuizzes(String email, int limit) {
-        Student student = getStudentByEmail(email);
-        List<Participation> completedQuizzes = participationRepository
-                .findByUserId(student.getUser().getId());
+    public List<StudentStatsDTO> getMostActiveStudents(int limit) {
+        log.info("Récupération des étudiants les plus actifs (limite: {})", limit);
 
-        List<Integer> completedQuizIds = completedQuizzes.stream()
-                .map(p -> p.getQuiz().getId())
+        List<Student> allStudents = studentRepository.findAll();
+
+        return allStudents.stream()
+                .map(student -> {
+                    List<Participation> participations = participationRepository
+                            .findByUserId((long) student.getUser().getId());
+
+                    StudentStatsDTO stats = new StudentStatsDTO();
+                    stats.setStudentName(student.getFirstName() + " " + student.getLastName());
+                    stats.setUsername(student.getUser().getUsername());
+                    stats.setTotalQuizzes(participations.size());
+                    stats.setAverageScore(calculateAverageScore(participations));
+
+                    return stats;
+                })
+                .filter(stats -> stats.getTotalQuizzes() > 0)
+                .sorted(Comparator.comparing(StudentStatsDTO::getTotalQuizzes).reversed())
+                .limit(limit)
                 .collect(Collectors.toList());
-
-        // Cette logique peut être améliorée avec un algorithme de recommandation
-        // Pour l'instant, on retourne simplement des quiz non complétés
-
-        return new ArrayList<>(); // À implémenter selon vos besoins
     }
 
     /**
      * Vérifie si un étudiant peut participer à un quiz
      */
     public boolean canParticipateInQuiz(String email, Integer quizId) {
-        Student student = getStudentByEmail(email);
+        log.debug("Vérification de la possibilité de participation au quiz {} pour {}", quizId, email);
 
-        // Vérifier si l'étudiant a déjà participé à ce quiz
-        List<Participation> participations = participationRepository.findByUserId(student.getUser().getId());
+        Student student = getStudentByEmail(email);
+        List<Participation> participations = participationRepository.findByUserId((long) student.getUser().getId());
 
         boolean alreadyParticipated = participations.stream()
                 .anyMatch(p -> p.getQuiz().getId().equals(quizId));
 
-        // Vous pouvez ajouter d'autres règles ici
-        // Par exemple : limiter le nombre de tentatives, vérifier les dates, etc.
+        log.debug("L'étudiant {} {} déjà participé au quiz {}",
+                email, alreadyParticipated ? "a" : "n'a pas", quizId);
 
         return !alreadyParticipated;
     }
@@ -309,18 +361,122 @@ public class StudentService {
      * Enregistre une nouvelle participation
      */
     public Participation createParticipation(String email, Integer quizId, BigDecimal score) {
+        log.info("Création d'une nouvelle participation pour {} au quiz {}", email, quizId);
+
         Student student = getStudentByEmail(email);
 
         if (!canParticipateInQuiz(email, quizId)) {
-            throw new RuntimeException("Student has already participated in this quiz");
+            throw new RuntimeException("L'étudiant a déjà participé à ce quiz");
         }
+
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new RuntimeException("Quiz non trouvé avec l'ID: " + quizId));
 
         Participation participation = new Participation();
         participation.setUser(student.getUser());
+        participation.setQuiz(quiz);
         participation.setScore(score);
-        // Note: Il faut aussi définir le quiz, à faire dans le QuizService
+        participation.setCreatedAt(LocalDateTime.now());
 
-        return participationRepository.save(participation);
+        Participation savedParticipation = participationRepository.save(participation);
+        log.info("Participation créée avec succès: ID {}", savedParticipation.getId());
+
+        return savedParticipation;
+    }
+
+    /**
+     * Récupère les quiz recommandés pour un étudiant (quiz non encore complétés)
+     */
+    public List<Quiz> getRecommendedQuizzes(String email, int limit) {
+        log.info("Récupération des quiz recommandés pour: {} (limite: {})", email, limit);
+
+        Student student = getStudentByEmail(email);
+        List<Participation> completedParticipations = participationRepository
+                .findByUserId((long) student.getUser().getId());
+
+        // Récupérer les IDs des quiz déjà complétés
+        List<Integer> completedQuizIds = completedParticipations.stream()
+                .map(p -> p.getQuiz().getId())
+                .collect(Collectors.toList());
+
+        // Récupérer tous les quiz non complétés, triés par date de création (les plus récents en premier)
+        List<Quiz> allQuizzes = quizRepository.findAll();
+
+        List<Quiz> recommendedQuizzes = allQuizzes.stream()
+                .filter(quiz -> !completedQuizIds.contains(quiz.getId()))
+                .sorted(Comparator.comparing(Quiz::getCreatedAt).reversed())
+                .limit(limit)
+                .collect(Collectors.toList());
+
+        log.info("{} quiz recommandés trouvés", recommendedQuizzes.size());
+        return recommendedQuizzes;
+    }
+
+    /**
+     * Supprime un étudiant
+     */
+    public void deleteStudent(Integer studentId) {
+        log.warn("Suppression de l'étudiant avec l'ID: {}", studentId);
+
+        Student student = studentRepository.findById(studentId)
+                .orElseThrow(() -> new RuntimeException("Étudiant non trouvé"));
+
+        studentRepository.delete(student);
+        log.info("Étudiant supprimé avec succès: {}", studentId);
+    }
+
+    /**
+     * Récupère tous les étudiants
+     */
+    public List<Student> getAllStudents() {
+        log.debug("Récupération de tous les étudiants");
+        return studentRepository.findAll();
+    }
+
+    /**
+     * Compte le nombre total d'étudiants
+     */
+    public long countStudents() {
+        long count = studentRepository.count();
+        log.debug("Nombre total d'étudiants: {}", count);
+        return count;
+    }
+
+    /**
+     * Recherche des étudiants par nom
+     */
+    public List<Student> searchStudentsByName(String searchTerm) {
+        log.info("Recherche d'étudiants avec le terme: {}", searchTerm);
+
+        if (searchTerm == null || searchTerm.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        String normalizedTerm = searchTerm.trim().toLowerCase();
+
+        List<Student> results = studentRepository.findAll().stream()
+                .filter(student ->
+                        student.getFirstName().toLowerCase().contains(normalizedTerm) ||
+                                student.getLastName().toLowerCase().contains(normalizedTerm) ||
+                                student.getUser().getUsername().toLowerCase().contains(normalizedTerm) ||
+                                student.getUser().getEmail().toLowerCase().contains(normalizedTerm)
+                )
+                .collect(Collectors.toList());
+
+        log.info("{} étudiants trouvés pour le terme '{}'", results.size(), searchTerm);
+        return results;
+    }
+
+    /**
+     * Vérifie si un étudiant existe
+     */
+    public boolean existsByEmail(String email) {
+        try {
+            getStudentByEmail(email);
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     /**
@@ -329,11 +485,27 @@ public class StudentService {
     private ParticipationDTO convertToParticipationDTO(Participation participation) {
         ParticipationDTO dto = new ParticipationDTO();
         dto.setId(participation.getId());
-        dto.setQuizTitle(participation.getQuiz().getTitle());
         dto.setQuizId(participation.getQuiz().getId());
+        dto.setQuizTitle(participation.getQuiz().getTitle());
         dto.setScore(participation.getScore());
         dto.setCompletedAt(participation.getCreatedAt());
         dto.setDuration(participation.getQuiz().getDuration());
+
+        // Calculer le nombre de questions et de réponses correctes
+        if (participation.getQuiz().getQuestions() != null) {
+            int questionCount = participation.getQuiz().getQuestions().size();
+            dto.setQuestionCount(questionCount);
+
+            // Calculer le nombre de réponses correctes basé sur le score
+            if (participation.getScore() != null && questionCount > 0) {
+                BigDecimal percentage = participation.getScore(); // Le score est déjà en pourcentage (0-100)
+                int correctAnswers = percentage
+                        .multiply(new BigDecimal(questionCount))
+                        .divide(new BigDecimal("100"), 0, RoundingMode.HALF_UP)
+                        .intValue();
+                dto.setCorrectAnswers(correctAnswers);
+            }
+        }
 
         return dto;
     }
@@ -349,12 +521,17 @@ public class StudentService {
         dto.setQuizDescription(participation.getQuiz().getDescription());
         dto.setScore(participation.getScore());
         dto.setCompletedAt(participation.getCreatedAt());
-        dto.setProfessorName(
-                participation.getQuiz().getProfessor().getFirstName() + " " +
-                        participation.getQuiz().getProfessor().getLastName()
-        );
 
-        // Calculer le rang (position dans le classement)
+        // Nom du professeur
+        if (participation.getQuiz().getProfessor() != null) {
+            String professorName = participation.getQuiz().getProfessor().getFirstName() + " " +
+                    participation.getQuiz().getProfessor().getLastName();
+            dto.setProfessorName(professorName);
+        } else {
+            dto.setProfessorName("Professeur inconnu");
+        }
+
+        // Calculer le rang (position dans le classement pour ce quiz)
         List<Participation> allParticipations = participationRepository
                 .findByQuizId(participation.getQuiz().getId());
 
@@ -367,65 +544,5 @@ public class StudentService {
         dto.setTotalParticipants(allParticipations.size());
 
         return dto;
-    }
-
-    /**
-     * Supprime un étudiant
-     */
-    public void deleteStudent(Integer studentId) {
-        Student student = studentRepository.findById(studentId)
-                .orElseThrow(() -> new RuntimeException("Student not found"));
-
-        studentRepository.delete(student);
-    }
-
-    /**
-     * Récupère tous les étudiants
-     */
-    public List<Student> getAllStudents() {
-        return studentRepository.findAll();
-    }
-
-    /**
-     * Compte le nombre total d'étudiants
-     */
-    public long countStudents() {
-        return studentRepository.count();
-    }
-
-    /**
-     * Recherche des étudiants par nom
-     */
-    public List<Student> searchStudentsByName(String searchTerm) {
-        return studentRepository.findAll().stream()
-                .filter(student ->
-                        student.getFirstName().toLowerCase().contains(searchTerm.toLowerCase()) ||
-                                student.getLastName().toLowerCase().contains(searchTerm.toLowerCase()) ||
-                                student.getUser().getUsername().toLowerCase().contains(searchTerm.toLowerCase())
-                )
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Récupère les étudiants les plus actifs
-     */
-    public List<StudentStatsDTO> getMostActiveStudents(int limit) {
-        List<Student> allStudents = studentRepository.findAll();
-
-        return allStudents.stream()
-                .map(student -> {
-                    List<Participation> participations = participationRepository
-                            .findByUserId(student.getUser().getId());
-
-                    StudentStatsDTO stats = new StudentStatsDTO();
-                    stats.setStudentName(student.getFirstName() + " " + student.getLastName());
-                    stats.setUsername(student.getUser().getUsername());
-                    stats.setTotalQuizzes(participations.size());
-
-                    return stats;
-                })
-                .sorted(Comparator.comparing(StudentStatsDTO::getTotalQuizzes).reversed())
-                .limit(limit)
-                .collect(Collectors.toList());
     }
 }
