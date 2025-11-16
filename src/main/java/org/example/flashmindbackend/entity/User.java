@@ -5,12 +5,12 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "user") // CORRECTION : Changé de "user" à "users" (mot réservé SQL)
+@Table(name = "user")
 @Data
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id; // CORRECTION : Utiliser Long au lieu de Integer
+    private int id;
 
     @Column(unique = true, nullable = false, length = 100)
     private String username;
