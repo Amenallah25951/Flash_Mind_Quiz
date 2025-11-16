@@ -43,8 +43,8 @@ public class StudentController {
             profile.put("id", student.getId());
             profile.put("firstName", student.getFirstName());
             profile.put("lastName", student.getLastName());
-            profile.put("username", student.getUser().getUsername());
-            profile.put("email", student.getUser().getEmail());
+            profile.put("username", student.getUsers().getUsername());
+            profile.put("email", student.getUsers().getEmail());
             profile.put("createdAt", student.getCreatedAt());
 
             return ResponseEntity.ok(profile);

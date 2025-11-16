@@ -5,7 +5,7 @@ import org.example.flashmindbackend.dto.LoginResponse;
 import org.example.flashmindbackend.dto.SignupRequest;
 import org.example.flashmindbackend.entity.Professor;
 import org.example.flashmindbackend.entity.Student;
-import org.example.flashmindbackend.entity.User;
+import org.example.flashmindbackend.entity.Users;
 import org.example.flashmindbackend.repository.ProfessorRepository;
 import org.example.flashmindbackend.repository.StudentRepository;
 import org.example.flashmindbackend.repository.UserRepository;
@@ -62,52 +62,52 @@ public class AuthService {
 
         try {
             // Créer l'utilisateur
-            User user = new User();
-            user.setUsername(request.getUsername());
-            user.setEmail(request.getEmail());
-            user.setPassword(passwordEncoder.encode(request.getPassword()));
-            user.setRole(User.Role.valueOf(role));
-            user.setEnabled(false); // Le compte sera activé après vérification email
-            user.setEmailVerified(false);
+            Users users = new Users();
+            users.setUsername(request.getUsername());
+            users.setEmail(request.getEmail());
+            users.setPassword(passwordEncoder.encode(request.getPassword()));
+            users.setRole(Users.Role.valueOf(role));
+            users.setEnabled(false); // Le compte sera activé après vérification email
+            users.setEmailVerified(false);
 
             // Générer un token de vérification
             String verificationToken = UUID.randomUUID().toString();
-            user.setVerificationToken(verificationToken);
-            user.setVerificationTokenExpiry(LocalDateTime.now().plusHours(24));
+            users.setVerificationToken(verificationToken);
+            users.setVerificationTokenExpiry(LocalDateTime.now().plusHours(24));
 
-            User savedUser = userRepository.save(user);
-            log.info("Utilisateur créé avec succès: {}", savedUser.getEmail());
+            Users savedUsers = userRepository.save(users);
+            log.info("Utilisateur créé avec succès: {}", savedUsers.getEmail());
 
             // Créer l'entité spécifique selon le rôle
             if ("student".equalsIgnoreCase(request.getRole())) {
                 Student student = new Student();
-                student.setUser(savedUser);
+                student.setUsers(savedUsers);
                 student.setFirstName(request.getFirstName());
                 student.setLastName(request.getLastName());
                 studentRepository.save(student);
-                log.info("Profil étudiant créé pour: {}", savedUser.getEmail());
+                log.info("Profil étudiant créé pour: {}", savedUsers.getEmail());
             } else if ("professor".equalsIgnoreCase(request.getRole())) {
                 Professor professor = new Professor();
-                professor.setUser(savedUser);
+                professor.setUsers(savedUsers);
                 professor.setFirstName(request.getFirstName());
                 professor.setLastName(request.getLastName());
                 professorRepository.save(professor);
-                log.info("Profil professeur créé pour: {}", savedUser.getEmail());
+                log.info("Profil professeur créé pour: {}", savedUsers.getEmail());
             }
 
             // Envoyer l'email de vérification
             try {
                 emailService.sendVerificationEmail(
-                        savedUser.getEmail(),
-                        savedUser.getUsername(),
-                        savedUser.getVerificationToken()
+                        savedUsers.getEmail(),
+                        savedUsers.getUsername(),
+                        savedUsers.getVerificationToken()
                 );
-                log.info("Email de vérification envoyé à: {}", savedUser.getEmail());
+                log.info("Email de vérification envoyé à: {}", savedUsers.getEmail());
             } catch (Exception e) {
                 log.error("Erreur lors de l'envoi de l'email de vérification à {}: {}",
-                        savedUser.getEmail(), e.getMessage());
+                        savedUsers.getEmail(), e.getMessage());
                 // Supprimer l'utilisateur si l'email n'a pas pu être envoyé
-                userRepository.delete(savedUser);
+                userRepository.delete(savedUsers);
                 throw new RuntimeException("Erreur lors de l'envoi de l'email de vérification. Veuillez réessayer.");
             }
 
@@ -126,33 +126,33 @@ public class AuthService {
             throw new RuntimeException("Le token de vérification est manquant");
         }
 
-        User user = userRepository.findByVerificationToken(token)
+        Users users = userRepository.findByVerificationToken(token)
                 .orElseThrow(() -> {
                     log.warn("Token de vérification invalide: {}", token);
                     return new RuntimeException("Token de vérification invalide ou expiré");
                 });
 
         // Vérifier si le token a expiré
-        if (user.getVerificationTokenExpiry() != null &&
-                user.getVerificationTokenExpiry().isBefore(LocalDateTime.now())) {
-            log.warn("Token expiré pour l'utilisateur: {}", user.getEmail());
+        if (users.getVerificationTokenExpiry() != null &&
+                users.getVerificationTokenExpiry().isBefore(LocalDateTime.now())) {
+            log.warn("Token expiré pour l'utilisateur: {}", users.getEmail());
             throw new RuntimeException("Le token de vérification a expiré. Veuillez demander un nouveau lien de vérification.");
         }
 
         // Vérifier si l'email est déjà vérifié
-        if (user.isEmailVerified()) {
-            log.info("Email déjà vérifié pour: {}", user.getEmail());
+        if (users.isEmailVerified()) {
+            log.info("Email déjà vérifié pour: {}", users.getEmail());
             throw new RuntimeException("Cet email est déjà vérifié. Vous pouvez vous connecter.");
         }
 
         // Marquer l'email comme vérifié et activer le compte
-        user.setEmailVerified(true);
-        user.setEnabled(true);
-        user.setVerificationToken(null);
-        user.setVerificationTokenExpiry(null);
-        userRepository.save(user);
+        users.setEmailVerified(true);
+        users.setEnabled(true);
+        users.setVerificationToken(null);
+        users.setVerificationTokenExpiry(null);
+        userRepository.save(users);
 
-        log.info("Email vérifié avec succès pour: {}", user.getEmail());
+        log.info("Email vérifié avec succès pour: {}", users.getEmail());
     }
 
     @Transactional
@@ -163,29 +163,29 @@ public class AuthService {
             throw new RuntimeException("L'adresse email est requise");
         }
 
-        User user = userRepository.findByEmail(email)
+        Users users = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("Tentative de renvoi d'email pour un utilisateur inexistant: {}", email);
                     return new RuntimeException("Aucun compte n'est associé à cette adresse email");
                 });
 
         // Vérifier si l'email est déjà vérifié
-        if (user.isEmailVerified()) {
+        if (users.isEmailVerified()) {
             log.info("Tentative de renvoi pour un email déjà vérifié: {}", email);
             throw new RuntimeException("Cet email est déjà vérifié. Vous pouvez vous connecter.");
         }
 
         // Générer un nouveau token
         String verificationToken = UUID.randomUUID().toString();
-        user.setVerificationToken(verificationToken);
-        user.setVerificationTokenExpiry(LocalDateTime.now().plusHours(24));
-        userRepository.save(user);
+        users.setVerificationToken(verificationToken);
+        users.setVerificationTokenExpiry(LocalDateTime.now().plusHours(24));
+        userRepository.save(users);
 
         // Renvoyer l'email
         try {
             emailService.sendVerificationEmail(
-                    user.getEmail(),
-                    user.getUsername(),
+                    users.getEmail(),
+                    users.getUsername(),
                     verificationToken
             );
             log.info("Email de vérification renvoyé avec succès à: {}", email);
@@ -202,13 +202,13 @@ public class AuthService {
             throw new RuntimeException("L'adresse email est requise");
         }
 
-        User user = userRepository.findByEmail(email)
+        Users users = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Aucun compte n'est associé à cette adresse email"));
 
-        return user.isEmailVerified();
+        return users.isEmailVerified();
     }
 
-    public User getUserByEmail(String email) {
+    public Users getUserByEmail(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
     }
@@ -231,17 +231,17 @@ public class AuthService {
         }
 
         // Récupérer l'utilisateur
-        User user = userRepository.findByEmail(request.getEmail())
+        Users users = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
 
         // Vérifier si le compte est activé
-        if (!user.isEnabled()) {
+        if (!users.isEnabled()) {
             log.warn("Tentative de connexion avec un compte désactivé: {}", request.getEmail());
             throw new RuntimeException("Votre compte est désactivé. Veuillez contacter l'administrateur.");
         }
 
         // Vérifier si l'email est vérifié
-        if (!user.isEmailVerified()) {
+        if (!users.isEmailVerified()) {
             log.warn("Tentative de connexion avec un email non vérifié: {}", request.getEmail());
             throw new RuntimeException("Votre email n'a pas encore été vérifié. Veuillez vérifier votre boîte de réception.");
         }
@@ -252,33 +252,33 @@ public class AuthService {
         String refreshToken = jwtUtil.generateRefreshToken(userDetails);
 
         // Sauvegarder le refresh token
-        user.setRefreshToken(refreshToken);
-        userRepository.save(user);
+        users.setRefreshToken(refreshToken);
+        userRepository.save(users);
 
         // Récupérer les informations complémentaires selon le rôle
         String firstName = "";
         String lastName = "";
 
-        if (user.getRole() == User.Role.student) {
-            Student student = studentRepository.findByUser(user)
+        if (users.getRole() == Users.Role.student) {
+            Student student = studentRepository.findByUser(users)
                     .orElseThrow(() -> new RuntimeException("Profil étudiant non trouvé"));
             firstName = student.getFirstName();
             lastName = student.getLastName();
-        } else if (user.getRole() == User.Role.professor) {
-            Professor professor = professorRepository.findByUser(user)
+        } else if (users.getRole() == Users.Role.professor) {
+            Professor professor = professorRepository.findByUser(users)
                     .orElseThrow(() -> new RuntimeException("Profil professeur non trouvé"));
             firstName = professor.getFirstName();
             lastName = professor.getLastName();
         }
 
-        log.info("Connexion réussie pour: {}", user.getEmail());
+        log.info("Connexion réussie pour: {}", users.getEmail());
 
         return new LoginResponse(
                 token,
                 refreshToken,
-                user.getUsername(),
-                user.getEmail(),
-                user.getRole().name(),
+                users.getUsername(),
+                users.getEmail(),
+                users.getRole().name(),
                 firstName,
                 lastName
         );
@@ -288,11 +288,11 @@ public class AuthService {
     public void logout(String email) {
         log.info("Déconnexion de l'utilisateur: {}", email);
 
-        User user = userRepository.findByEmail(email)
+        Users users = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
 
-        user.setRefreshToken(null);
-        userRepository.save(user);
+        users.setRefreshToken(null);
+        userRepository.save(users);
 
         log.info("Utilisateur déconnecté: {}", email);
     }
@@ -306,11 +306,11 @@ public class AuthService {
         }
 
         String email = jwtUtil.extractUsername(refreshToken);
-        User user = userRepository.findByEmail(email)
+        Users users = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
 
         // Vérifier que le refresh token correspond à celui en base
-        if (!refreshToken.equals(user.getRefreshToken())) {
+        if (!refreshToken.equals(users.getRefreshToken())) {
             throw new RuntimeException("Refresh token invalide");
         }
 
@@ -320,20 +320,20 @@ public class AuthService {
         String newRefreshToken = jwtUtil.generateRefreshToken(userDetails);
 
         // Mettre à jour le refresh token en base
-        user.setRefreshToken(newRefreshToken);
-        userRepository.save(user);
+        users.setRefreshToken(newRefreshToken);
+        userRepository.save(users);
 
         // Récupérer les informations de profil
         String firstName = "";
         String lastName = "";
 
-        if (user.getRole() == User.Role.student) {
-            Student student = studentRepository.findByUser(user)
+        if (users.getRole() == Users.Role.student) {
+            Student student = studentRepository.findByUser(users)
                     .orElseThrow(() -> new RuntimeException("Profil étudiant non trouvé"));
             firstName = student.getFirstName();
             lastName = student.getLastName();
-        } else if (user.getRole() == User.Role.professor) {
-            Professor professor = professorRepository.findByUser(user)
+        } else if (users.getRole() == Users.Role.professor) {
+            Professor professor = professorRepository.findByUser(users)
                     .orElseThrow(() -> new RuntimeException("Profil professeur non trouvé"));
             firstName = professor.getFirstName();
             lastName = professor.getLastName();
@@ -344,9 +344,9 @@ public class AuthService {
         return new LoginResponse(
                 newToken,
                 newRefreshToken,
-                user.getUsername(),
-                user.getEmail(),
-                user.getRole().name(),
+                users.getUsername(),
+                users.getEmail(),
+                users.getRole().name(),
                 firstName,
                 lastName
         );
@@ -359,7 +359,7 @@ public class AuthService {
             throw new RuntimeException("L'adresse email est requise");
         }
 
-        User user = userRepository.findByEmail(email)
+        Users users = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("Tentative de réinitialisation pour un email inexistant: {}", email);
                     return new RuntimeException("Si cet email existe, un lien de réinitialisation a été envoyé");
@@ -367,20 +367,20 @@ public class AuthService {
 
         // Générer un token de réinitialisation
         String resetToken = UUID.randomUUID().toString();
-        user.setPasswordResetToken(resetToken);
-        user.setPasswordResetTokenExpiry(LocalDateTime.now().plusHours(1));
+        users.setPasswordResetToken(resetToken);
+        users.setPasswordResetTokenExpiry(LocalDateTime.now().plusHours(1));
 
-        User savedUser = userRepository.save(user);
+        Users savedUsers = userRepository.save(users);
 
         // LOG IMPORTANT pour debug
         log.info("🔐 Token généré pour {}: {}", email, resetToken);
-        log.info("⏰ Expire à: {}", savedUser.getPasswordResetTokenExpiry());
+        log.info("⏰ Expire à: {}", savedUsers.getPasswordResetTokenExpiry());
 
         // Envoyer l'email
         try {
             emailService.sendPasswordResetEmail(
-                    user.getEmail(),
-                    user.getUsername(),
+                    users.getEmail(),
+                    users.getUsername(),
                     resetToken
             );
             log.info("✅ Email de réinitialisation envoyé à: {}", email);
@@ -408,30 +408,30 @@ public class AuthService {
             throw new RuntimeException("Le mot de passe doit contenir au moins 8 caractères");
         }
 
-        User user = userRepository.findByPasswordResetToken(token)
+        Users users = userRepository.findByPasswordResetToken(token)
                 .orElseThrow(() -> {
                     log.warn("Token de réinitialisation invalide: {}", token);
                     return new RuntimeException("Token de réinitialisation invalide ou expiré");
                 });
 
         // Vérifier si le token a expiré
-        if (user.getPasswordResetTokenExpiry() != null &&
-                user.getPasswordResetTokenExpiry().isBefore(LocalDateTime.now())) {
-            log.warn("Token expiré pour l'utilisateur: {}", user.getEmail());
+        if (users.getPasswordResetTokenExpiry() != null &&
+                users.getPasswordResetTokenExpiry().isBefore(LocalDateTime.now())) {
+            log.warn("Token expiré pour l'utilisateur: {}", users.getEmail());
             throw new RuntimeException("Le token de réinitialisation a expiré. Veuillez refaire une demande.");
         }
 
         // Mettre à jour le mot de passe
-        user.setPassword(passwordEncoder.encode(newPassword));
-        user.setPasswordResetToken(null);
-        user.setPasswordResetTokenExpiry(null);
+        users.setPassword(passwordEncoder.encode(newPassword));
+        users.setPasswordResetToken(null);
+        users.setPasswordResetTokenExpiry(null);
 
         // Invalider tous les refresh tokens pour forcer une nouvelle connexion
-        user.setRefreshToken(null);
+        users.setRefreshToken(null);
 
-        userRepository.save(user);
+        userRepository.save(users);
 
-        log.info("Mot de passe réinitialisé avec succès pour: {}", user.getEmail());
+        log.info("Mot de passe réinitialisé avec succès pour: {}", users.getEmail());
     }
 
     @Transactional
@@ -442,15 +442,15 @@ public class AuthService {
             throw new RuntimeException("Le token de réinitialisation est manquant");
         }
 
-        User user = userRepository.findByPasswordResetToken(token)
+        Users users = userRepository.findByPasswordResetToken(token)
                 .orElseThrow(() -> new RuntimeException("Token de réinitialisation invalide"));
 
         // Vérifier si le token a expiré
-        if (user.getPasswordResetTokenExpiry() != null &&
-                user.getPasswordResetTokenExpiry().isBefore(LocalDateTime.now())) {
+        if (users.getPasswordResetTokenExpiry() != null &&
+                users.getPasswordResetTokenExpiry().isBefore(LocalDateTime.now())) {
             throw new RuntimeException("Le token de réinitialisation a expiré");
         }
 
-        log.debug("Token valide pour l'utilisateur: {}", user.getEmail());
+        log.debug("Token valide pour l'utilisateur: {}", users.getEmail());
     }
 }

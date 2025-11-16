@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -54,8 +53,8 @@ public class QuizService {
 
     @Transactional
     public void submitQuiz(Integer quizId, String userEmail, SubmitQuizRequest request) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        Users users = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("Users not found"));
 
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new RuntimeException("Quiz not found"));
@@ -63,7 +62,7 @@ public class QuizService {
         // Créer une participation
         Participation participation = new Participation();
         participation.setQuiz(quiz);
-        participation.setUser(user);
+        participation.setUsers(users);
         participation.setScore(request.getScore());
 
         participationRepository.save(participation);
