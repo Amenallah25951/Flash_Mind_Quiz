@@ -1,0 +1,1 @@
+web: java -Dserver.port=$PORT -jar target/flash-mind-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
