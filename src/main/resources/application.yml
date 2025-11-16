@@ -13,7 +13,7 @@ spring:
     activate:
       on-profile: prod
   datasource:
-    url: jdbc:postgresql://dpg-d4d2ts0gjchc73do1cs0-a.frankfurt-postgres.render.com:5432/flash_mind_db?ssl=true&sslmode=require
+    url: jdbc:postgresql://flash_mind_db_user:nUY5gKopN0jxTc2mB44ZaDNHYnopCT7r@dpg-d4d2ts0gjchc73do1cs0-a.frankfurt-postgres.render.com/flash_mind_db?ssl=true&sslmode=require
     username: flash_mind_db_user
     password: nUY5gKopN0jxTc2mB44ZaDNHYnopCT7r
     hikari:
