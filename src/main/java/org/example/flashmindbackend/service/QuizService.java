@@ -53,8 +53,8 @@ public class QuizService {
 
     @Transactional
     public void submitQuiz(Integer quizId, String userEmail, SubmitQuizRequest request) {
-        Users users = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("Users not found"));
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new RuntimeException("Quiz not found"));
@@ -62,7 +62,7 @@ public class QuizService {
         // Créer une participation
         Participation participation = new Participation();
         participation.setQuiz(quiz);
-        participation.setUsers(users);
+        participation.setUser(user);
         participation.setScore(request.getScore());
 
         participationRepository.save(participation);

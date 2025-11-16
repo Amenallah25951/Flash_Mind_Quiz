@@ -1,6 +1,6 @@
 package org.example.flashmindbackend.security;
 
-import org.example.flashmindbackend.entity.Users;
+import org.example.flashmindbackend.entity.User;
 import org.example.flashmindbackend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -19,13 +19,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        Users users = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("Users not found with email: " + email));
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
         return new org.springframework.security.core.userdetails.User(
-                users.getEmail(),
-                users.getPassword(),
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + users.getRole().name().toUpperCase()))
+                user.getEmail(),
+                user.getPassword(),
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().name().toUpperCase()))
         );
     }
 }

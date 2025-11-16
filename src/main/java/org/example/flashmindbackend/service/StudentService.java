@@ -5,7 +5,7 @@ import org.example.flashmindbackend.dto.ParticipationDTO;
 import org.example.flashmindbackend.dto.QuizHistoryDTO;
 import org.example.flashmindbackend.entity.Participation;
 import org.example.flashmindbackend.entity.Student;
-import org.example.flashmindbackend.entity.Users;
+import org.example.flashmindbackend.entity.User;
 import org.example.flashmindbackend.entity.Quiz;
 import org.example.flashmindbackend.repository.ParticipationRepository;
 import org.example.flashmindbackend.repository.StudentRepository;
@@ -43,14 +43,14 @@ public class StudentService {
     public Student getStudentByEmail(String email) {
         log.debug("Récupération de l'étudiant avec l'email: {}", email);
 
-        Users users = userRepository.findByEmail(email)
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé avec l'email: " + email));
 
-        if (users.getRole() != Users.Role.student) {
+        if (user.getRole() != User.Role.student) {
             throw new RuntimeException("L'utilisateur n'est pas un étudiant");
         }
 
-        return studentRepository.findByUser(users)
+        return studentRepository.findByUser(user)
                 .orElseThrow(() -> new RuntimeException("Profil étudiant non trouvé"));
     }
 
@@ -71,13 +71,13 @@ public class StudentService {
         log.info("Calcul des statistiques pour l'étudiant: {}", email);
 
         Student student = getStudentByEmail(email);
-        List<Participation> participations = participationRepository.findByUserId((long) student.getUsers().getId());
+        List<Participation> participations = participationRepository.findByUserId((long) student.getUser().getId());
 
         StudentStatsDTO stats = new StudentStatsDTO();
 
         // Informations de l'étudiant
         stats.setStudentName(student.getFirstName() + " " + student.getLastName());
-        stats.setUsername(student.getUsers().getUsername());
+        stats.setUsername(student.getUser().getUsername());
 
         // Nombre total de quiz complétés
         stats.setTotalQuizzes(participations.size());
@@ -231,7 +231,7 @@ public class StudentService {
         log.info("Récupération de l'historique des quiz pour: {}", email);
 
         Student student = getStudentByEmail(email);
-        List<Participation> participations = participationRepository.findByUserId((long) student.getUsers().getId());
+        List<Participation> participations = participationRepository.findByUserId((long) student.getUser().getId());
 
         List<QuizHistoryDTO> history = participations.stream()
                 .sorted(Comparator.comparing(Participation::getCreatedAt).reversed())
@@ -253,7 +253,7 @@ public class StudentService {
                 .orElseThrow(() -> new RuntimeException("Participation non trouvée"));
 
         // Vérifier que la participation appartient bien à l'étudiant
-        if (!(participation.getUsers().getId() ==(student.getUsers().getId()))) {
+        if (!(participation.getUser().getId() ==(student.getUser().getId()))) {
             throw new RuntimeException("Accès non autorisé à cette participation");
         }
 
@@ -293,11 +293,11 @@ public class StudentService {
         List<StudentStatsDTO> leaderboard = allStudents.stream()
                 .map(student -> {
                     List<Participation> participations = participationRepository
-                            .findByUserId((long) student.getUsers().getId());
+                            .findByUserId((long) student.getUser().getId());
 
                     StudentStatsDTO stats = new StudentStatsDTO();
                     stats.setStudentName(student.getFirstName() + " " + student.getLastName());
-                    stats.setUsername(student.getUsers().getUsername());
+                    stats.setUsername(student.getUser().getUsername());
                     stats.setTotalQuizzes(participations.size());
                     stats.setAverageScore(calculateAverageScore(participations));
 
@@ -323,11 +323,11 @@ public class StudentService {
         return allStudents.stream()
                 .map(student -> {
                     List<Participation> participations = participationRepository
-                            .findByUserId((long) student.getUsers().getId());
+                            .findByUserId((long) student.getUser().getId());
 
                     StudentStatsDTO stats = new StudentStatsDTO();
                     stats.setStudentName(student.getFirstName() + " " + student.getLastName());
-                    stats.setUsername(student.getUsers().getUsername());
+                    stats.setUsername(student.getUser().getUsername());
                     stats.setTotalQuizzes(participations.size());
                     stats.setAverageScore(calculateAverageScore(participations));
 
@@ -346,7 +346,7 @@ public class StudentService {
         log.debug("Vérification de la possibilité de participation au quiz {} pour {}", quizId, email);
 
         Student student = getStudentByEmail(email);
-        List<Participation> participations = participationRepository.findByUserId((long) student.getUsers().getId());
+        List<Participation> participations = participationRepository.findByUserId((long) student.getUser().getId());
 
         boolean alreadyParticipated = participations.stream()
                 .anyMatch(p -> p.getQuiz().getId().equals(quizId));
@@ -373,7 +373,7 @@ public class StudentService {
                 .orElseThrow(() -> new RuntimeException("Quiz non trouvé avec l'ID: " + quizId));
 
         Participation participation = new Participation();
-        participation.setUsers(student.getUsers());
+        participation.setUser(student.getUser());
         participation.setQuiz(quiz);
         participation.setScore(score);
         participation.setCreatedAt(LocalDateTime.now());
@@ -392,7 +392,7 @@ public class StudentService {
 
         Student student = getStudentByEmail(email);
         List<Participation> completedParticipations = participationRepository
-                .findByUserId((long) student.getUsers().getId());
+                .findByUserId((long) student.getUser().getId());
 
         // Récupérer les IDs des quiz déjà complétés
         List<Integer> completedQuizIds = completedParticipations.stream()
@@ -458,8 +458,8 @@ public class StudentService {
                 .filter(student ->
                         student.getFirstName().toLowerCase().contains(normalizedTerm) ||
                                 student.getLastName().toLowerCase().contains(normalizedTerm) ||
-                                student.getUsers().getUsername().toLowerCase().contains(normalizedTerm) ||
-                                student.getUsers().getEmail().toLowerCase().contains(normalizedTerm)
+                                student.getUser().getUsername().toLowerCase().contains(normalizedTerm) ||
+                                student.getUser().getEmail().toLowerCase().contains(normalizedTerm)
                 )
                 .collect(Collectors.toList());
 

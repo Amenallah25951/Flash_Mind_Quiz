@@ -14,7 +14,7 @@ public class Student {
 
     @OneToOne
     @JoinColumn(name = "user_id", unique = true, nullable = false)
-    private Users users;
+    private User user;
 
     @Column(name = "first_name", length = 100)
     private String firstName;
