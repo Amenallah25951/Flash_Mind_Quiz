@@ -2,5 +2,10 @@
 .gitignore
 README.md
 target/
-*.log
+.idea/
+*.iml
+.vscode/
 .DS_Store
+*.log
+Procfile
+render.yaml
