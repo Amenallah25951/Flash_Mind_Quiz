@@ -1,20 +1,30 @@
-# Étape 1 : Utilise une image Java 17 officielle
+# Dockerfile corrigé avec encodage UTF-8
 FROM eclipse-temurin:17-jdk-alpine
 
-# Étape 2 : Définit le répertoire de travail dans le conteneur
+# Définit l'encodage UTF-8
+ENV LANG C.UTF-8
+ENV LC_ALL C.UTF-8
+
+# Installation des dépendances nécessaires
+RUN apk add --no-cache bash
+
 WORKDIR /app
 
-# Étape 3 : Copie les fichiers nécessaires
-COPY . .
-
-# Étape 4 : Donne les permissions d'exécution au Maven wrapper
+# Copie des fichiers de construction Maven d'abord (optimisation cache)
+COPY pom.xml .
+COPY mvnw .
+COPY .mvn .mvn
 RUN chmod +x ./mvnw
 
-# Étape 5 : Construit l'application
-RUN ./mvnw clean package -DskipTests
+# Télécharge les dépendances Maven (cache séparé)
+RUN ./mvnw dependency:go-offline -B
 
-# Étape 6 : Expose le port 8080
+# Copie du code source
+COPY src ./src
+
+# Construction avec encodage explicite
+RUN ./mvnw clean package -DskipTests -Dfile.encoding=UTF-8
+
 EXPOSE 8080
 
-# Étape 7 : Commande pour lancer l'application
-ENTRYPOINT ["java", "-jar", "target/flash-mind-backend-0.0.1-SNAPSHOT.jar"]
+CMD ["java", "-Dserver.port=${PORT:-8080}", "-Dfile.encoding=UTF-8", "-jar", "target/flash-mind-backend-0.0.1-SNAPSHOT.jar", "--spring.profiles.active=prod"]
