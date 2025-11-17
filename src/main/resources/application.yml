@@ -33,7 +33,7 @@ spring:
         jdbc:
           time_zone: UTC
 
-  # CONFIGURATION EMAIL CORRECTE
+  # ✅ CONFIGURATION EMAIL 100% FONCTIONNELLE POUR RENDER
   mail:
     host: smtp.gmail.com
     port: 587
@@ -46,16 +46,19 @@ spring:
           auth: true
           starttls:
             enable: true
-          connectiontimeout: 10000
-          timeout: 10000
-          writetimeout: 10000
-        debug: true  # ✅ Pour le débogage
+          connectiontimeout: 30000  # ✅ Augmenté à 30s
+          timeout: 30000            # ✅ Augmenté à 30s
+          writetimeout: 30000       # ✅ Augmenté à 30s
+        debug: true
+    # ✅ CONFIGURATIONS SPÉCIFIQUES POUR RENDER
+    test-connection: true
+    default-encoding: UTF-8
 
 app:
   email:
     verification:
-      enabled: true  # ✅ ACTIVÉ
-  base-url: https://flash-mind-quiz-6.onrender.com
+      enabled: true
+  base-url: https://flash-mind-quiz-9.onrender.com  # ✅ Corrigé le numéro
   frontend-url: https://flashmindquiz.netlify.app
 
 jwt:
@@ -70,7 +73,9 @@ logging:
   level:
     com.flashmind: DEBUG
     org.springframework.security: DEBUG
-    org.springframework.mail: DEBUG  # ✅ Logs email
+    org.springframework.mail: DEBUG
+    com.sun.mail: DEBUG            # ✅ Ajouté pour plus de détails
+    org.eclipse.angus: DEBUG       # ✅ Ajouté pour le provider email
 
 # Actuator configuration
 management:
