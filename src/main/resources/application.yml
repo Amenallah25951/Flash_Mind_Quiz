@@ -13,7 +13,7 @@ spring:
     activate:
       on-profile: prod
   datasource:
-    url: jdbc:mysql://mysql-amenallah.alwaysdata.net:3306/amenallah?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://mysql-amenallah.alwaysdata.net:3306/amenallah_flash_mind_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: amenallah
     password: Amen20/12/2004/123
     driver-class-name: com.mysql.cj.jdbc.Driver
