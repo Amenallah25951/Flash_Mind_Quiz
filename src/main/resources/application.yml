@@ -33,22 +33,28 @@ spring:
         jdbc:
           time_zone: UTC
 
+  # CONFIGURATION EMAIL CORRECTE
   mail:
     host: smtp.gmail.com
     port: 587
     username: flashmindquizz@gmail.com
     password: mfwf gwxc dvlc mims
+    protocol: smtp
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+        debug: true  # ✅ Pour le débogage
 
 app:
   email:
     verification:
-      enabled: false
+      enabled: true  # ✅ ACTIVÉ
   base-url: https://flash-mind-quiz-6.onrender.com
   frontend-url: https://flashmindquiz.netlify.app
 
@@ -64,6 +70,7 @@ logging:
   level:
     com.flashmind: DEBUG
     org.springframework.security: DEBUG
+    org.springframework.mail: DEBUG  # ✅ Logs email
 
 # Actuator configuration
 management:
