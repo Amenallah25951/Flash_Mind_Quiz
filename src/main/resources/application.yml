@@ -37,24 +37,20 @@ spring:
   mail:
     test-connection: false
     host: smtp.resend.com
-    port: 465
+    port: 587
     username: resend
     password: re_RyPG6B5Q_JyoifafYQZx4mMmN99xLpsQv
-    properties:
-      mail:
-        smtp:
-          auth: true
-          ssl:
-            enable: true
-            trust: smtp.resend.com
-          socketFactory:
-            port: 465
-            class: javax.net.ssl.SSLSocketFactory
-            fallback: false
-          connectiontimeout: 10000
-          timeout: 10000
-          writetimeout: 10000
-        debug: true
+properties:
+  mail:
+    smtp:
+      auth: true
+      starttls:
+        enable: true  # ✅ STARTTLS au lieu de SSL
+        required: true
+      connectiontimeout: 10000
+      timeout: 10000
+      writetimeout: 10000
+    debug: true
 
 app:
   email:
