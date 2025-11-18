@@ -1,46 +1,82 @@
 package org.example.flashmindbackend.service;
 
-import lombok.RequiredArgsConstructor;
+// ✅ IMPORTS RESEND CORRECTS
+import com.resend.Resend;
+import com.resend.core.exception.ResendException;
+import com.resend.services.emails.model.CreateEmailOptions;
+import com.resend.services.emails.model.CreateEmailResponse;
+
+// Imports Spring/Lombok
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
-
+@Slf4j
 @Service
-@RequiredArgsConstructor
 public class EmailService {
 
-    private final JavaMailSender mailSender;
+    @Value("${resend.api-key}")
+    private String resendApiKey;
+
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
 
     @Value("${app.base-url}")
     private String baseUrl;
 
-    @Value("${spring.mail.username}")
-    private String fromEmail;
+    private Resend getResendClient() {
+        return new Resend(resendApiKey);
+    }
 
     public void sendVerificationEmail(String toEmail, String username, String token) {
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-
-            helper.setFrom(fromEmail);
-            helper.setTo(toEmail);
-            helper.setSubject("✨ Vérifiez votre compte FlashMind");
+            Resend resend = getResendClient();
 
             String verificationLink = baseUrl + "/api/auth/verify-email?token=" + token;
-
             String htmlContent = buildModernEmailTemplate(username, verificationLink);
-            helper.setText(htmlContent, true);
 
-            mailSender.send(message);
-        } catch (MessagingException e) {
+            CreateEmailOptions emailRequest = CreateEmailOptions.builder()
+                    .from("FlashMind <onboarding@resend.dev>")
+                    .to(toEmail)
+                    .subject("✨ Vérifiez votre compte FlashMind")
+                    .html(htmlContent)
+                    .build();
+
+            CreateEmailResponse response = resend.emails().send(emailRequest);
+
+            log.info("✅ Email de vérification envoyé avec succès à: {} (ID: {})", toEmail, response.getId());
+
+        } catch (ResendException e) {
+            log.error("❌ Erreur lors de l'envoi de l'email de vérification à {}: {}", toEmail, e.getMessage());
             throw new RuntimeException("Erreur lors de l'envoi de l'email de vérification", e);
         }
     }
 
+    public void sendPasswordResetEmail(String toEmail, String username, String token) {
+        try {
+            Resend resend = getResendClient();
+
+            String resetLink = frontendUrl + "/reset-password?token=" + token;
+            String htmlContent = buildPasswordResetTemplate(username, resetLink);
+
+            CreateEmailOptions emailRequest = CreateEmailOptions.builder()
+                    .from("FlashMind <onboarding@resend.dev>")
+                    .to(toEmail)
+                    .subject("🔐 Réinitialisation de votre mot de passe FlashMind")
+                    .html(htmlContent)
+                    .build();
+
+            CreateEmailResponse response = resend.emails().send(emailRequest);
+
+            log.info("✅ Email de réinitialisation envoyé avec succès à: {} (ID: {})", toEmail, response.getId());
+
+        } catch (ResendException e) {
+            log.error("❌ Erreur lors de l'envoi de l'email de réinitialisation à {}: {}", toEmail, e.getMessage());
+            throw new RuntimeException("Erreur lors de l'envoi de l'email de réinitialisation", e);
+        }
+    }
+
+    // 🎨 Templates HTML (gardez vos templates existants)
     private String buildModernEmailTemplate(String username, String verificationLink) {
         return "<!DOCTYPE html>" +
                 "<html lang='fr'>" +
@@ -95,25 +131,18 @@ public class EmailService {
                 "</head>" +
                 "<body>" +
                 "<div class='email-wrapper'>" +
-
-                "<!-- Header -->" +
                 "<div class='header'>" +
                 "<div class='logo'>🧠</div>" +
                 "<h1>FlashMind</h1>" +
                 "<p>Votre plateforme d'apprentissage intelligente</p>" +
                 "</div>" +
-
-                "<!-- Content -->" +
                 "<div class='content'>" +
                 "<div class='greeting'>Bonjour " + username + " ! 👋</div>" +
-
                 "<p class='message'>" +
                 "Nous sommes <strong>ravis</strong> de vous accueillir sur FlashMind ! 🎉<br><br>" +
                 "Votre compte a été créé avec succès. Pour commencer votre voyage d'apprentissage et accéder à toutes nos fonctionnalités, " +
                 "il ne vous reste plus qu'à vérifier votre adresse email." +
                 "</p>" +
-
-                "<!-- Features -->" +
                 "<div class='features'>" +
                 "<div class='feature'>" +
                 "<div class='feature-icon'>📚</div>" +
@@ -128,42 +157,29 @@ public class EmailService {
                 "<div class='feature-text'>Collaboration</div>" +
                 "</div>" +
                 "</div>" +
-
-                "<!-- Button -->" +
                 "<div class='button-container'>" +
                 "<a href='" + verificationLink + "' class='verify-button'>✨ Vérifier mon email</a>" +
                 "</div>" +
-
-                "<!-- Timer Warning -->" +
                 "<div class='timer'>" +
                 "<div class='timer-icon'>⏰</div>" +
                 "<p class='timer-text'>Ce lien expire dans 24 heures</p>" +
                 "</div>" +
-
                 "<div class='divider'></div>" +
-
-                "<!-- Alternative Link -->" +
                 "<p style='text-align: center; color: #718096; font-size: 14px; margin-bottom: 10px;'>" +
                 "Le bouton ne fonctionne pas ? Copiez ce lien dans votre navigateur :" +
                 "</p>" +
                 "<div class='link-box'>" +
                 "<a href='" + verificationLink + "'>" + verificationLink + "</a>" +
                 "</div>" +
-
-                "<!-- Info Box -->" +
                 "<div class='info-box'>" +
                 "<p><strong>🔒 Sécurité :</strong> Si vous n'avez pas créé de compte sur FlashMind, " +
                 "vous pouvez ignorer cet email en toute sécurité. Votre adresse ne sera pas utilisée sans votre consentement.</p>" +
                 "</div>" +
-
                 "<div class='divider'></div>" +
-
                 "<p style='text-align: center; color: #718096; font-size: 14px;'>" +
                 "Besoin d'aide ? Notre équipe est là pour vous ! Contactez-nous à tout moment." +
                 "</p>" +
                 "</div>" +
-
-                "<!-- Footer -->" +
                 "<div class='footer'>" +
                 "<div class='social-icons'>" +
                 "<a href='#'>📘</a>" +
@@ -171,43 +187,19 @@ public class EmailService {
                 "<a href='#'>📷</a>" +
                 "<a href='#'>💼</a>" +
                 "</div>" +
-
                 "<div class='footer-links'>" +
                 "<a href='#'>Centre d'aide</a> •" +
                 "<a href='#'>Conditions d'utilisation</a> •" +
                 "<a href='#'>Confidentialité</a>" +
                 "</div>" +
-
                 "<div class='copyright'>" +
                 "© 2025 FlashMind. Tous droits réservés.<br>" +
                 "FlashMind - Apprenez plus intelligemment, pas plus dur. 🚀" +
                 "</div>" +
                 "</div>" +
-
                 "</div>" +
                 "</body>" +
                 "</html>";
-    }
-
-    public void sendPasswordResetEmail(String toEmail, String username, String token) {
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-
-            helper.setFrom(fromEmail);
-            helper.setTo(toEmail);
-            helper.setSubject("🔐 Réinitialisation de votre mot de passe FlashMind");
-
-            // ⚠️ MODIFICATION ICI : Remplacer baseUrl par l'URL du frontend
-            String resetLink = "http://localhost:5173/reset-password?token=" + token;
-
-            String htmlContent = buildPasswordResetTemplate(username, resetLink);
-            helper.setText(htmlContent, true);
-
-            mailSender.send(message);
-        } catch (MessagingException e) {
-            throw new RuntimeException("Erreur lors de l'envoi de l'email de réinitialisation", e);
-        }
     }
 
     private String buildPasswordResetTemplate(String username, String resetLink) {
@@ -255,43 +247,30 @@ public class EmailService {
                 "</head>" +
                 "<body>" +
                 "<div class='email-wrapper'>" +
-
-                "<!-- Header -->" +
                 "<div class='header'>" +
                 "<div class='logo'>🔐</div>" +
                 "<h1>Réinitialisation du mot de passe</h1>" +
                 "<p>FlashMind - Sécurité de votre compte</p>" +
                 "</div>" +
-
-                "<!-- Content -->" +
                 "<div class='content'>" +
-
                 "<div class='alert-box'>" +
                 "<div class='alert-icon'>⚠️</div>" +
                 "<p style='color: #c53030; font-weight: 600; text-align: center; margin: 0;'>" +
                 "Demande de réinitialisation de mot de passe détectée" +
                 "</p>" +
                 "</div>" +
-
                 "<div class='greeting'>Bonjour " + username + ",</div>" +
-
                 "<p class='message'>" +
                 "Nous avons reçu une demande de réinitialisation de mot de passe pour votre compte FlashMind. " +
                 "Si vous êtes à l'origine de cette demande, cliquez sur le bouton ci-dessous pour créer un nouveau mot de passe." +
                 "</p>" +
-
-                "<!-- Button -->" +
                 "<div class='button-container'>" +
                 "<a href='" + resetLink + "' class='reset-button'>🔑 Réinitialiser mon mot de passe</a>" +
                 "</div>" +
-
-                "<!-- Timer Warning -->" +
                 "<div class='timer'>" +
                 "<div class='timer-icon'>⏰</div>" +
                 "<p class='timer-text'>Ce lien expire dans 1 heure pour votre sécurité</p>" +
                 "</div>" +
-
-                "<!-- Security Tips -->" +
                 "<div class='security-tips'>" +
                 "<h3>💡 Conseils de sécurité</h3>" +
                 "<ul>" +
@@ -301,27 +280,20 @@ public class EmailService {
                 "<li>Ne partagez jamais votre mot de passe avec quiconque</li>" +
                 "</ul>" +
                 "</div>" +
-
                 "<div class='divider'></div>" +
-
-                "<!-- Alternative Link -->" +
                 "<p style='text-align: center; color: #718096; font-size: 14px; margin-bottom: 10px;'>" +
                 "Le bouton ne fonctionne pas ? Copiez ce lien dans votre navigateur :" +
                 "</p>" +
                 "<div class='link-box'>" +
                 "<a href='" + resetLink + "'>" + resetLink + "</a>" +
                 "</div>" +
-
                 "<div class='divider'></div>" +
-
                 "<p style='background: #fef5e7; border-left: 4px solid #f39c12; padding: 15px; border-radius: 10px; color: #856404; font-size: 14px;'>" +
                 "<strong>🚨 Vous n'avez pas demandé cette réinitialisation ?</strong><br>" +
                 "Si vous n'êtes pas à l'origine de cette demande, veuillez ignorer cet email et " +
                 "contacter immédiatement notre support. Votre mot de passe actuel reste inchangé." +
                 "</p>" +
                 "</div>" +
-
-                "<!-- Footer -->" +
                 "<div class='footer'>" +
                 "<p style='margin-bottom: 15px;'>Besoin d'aide ? Contactez notre support</p>" +
                 "<div class='copyright'>" +
@@ -329,7 +301,6 @@ public class EmailService {
                 "Cet email a été envoyé pour des raisons de sécurité." +
                 "</div>" +
                 "</div>" +
-
                 "</div>" +
                 "</body>" +
                 "</html>";

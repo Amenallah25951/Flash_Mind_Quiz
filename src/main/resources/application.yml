@@ -34,29 +34,14 @@ spring:
           time_zone: UTC
 
   # ✅ CONFIGURATION EMAIL AVEC PORT 465 SSL (pour Render)
-  mail:
-    test-connection: false
-    host: smtp.resend.com
-    port: 587
-    username: resend
-    password: re_RyPG6B5Q_JyoifafYQZx4mMmN99xLpsQv
-properties:
-  mail:
-    smtp:
-      auth: true
-      starttls:
-        enable: true  # ✅ STARTTLS au lieu de SSL
-        required: true
-      connectiontimeout: 10000
-      timeout: 10000
-      writetimeout: 10000
-    debug: true
+resend:
+  api-key: re_RyPG6B5Q_JyoifafYQZx4mMmN99xLpsQv
 
 app:
   email:
     verification:
       enabled: true
-  base-url: https://flash-mind-quiz-9.onrender.com
+  base-url: https://flash-mind-quiz-10.onrender.com
   frontend-url: https://flashmindquiz.netlify.app
 
 jwt:
