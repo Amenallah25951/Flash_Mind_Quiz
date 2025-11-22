@@ -1,52 +1,37 @@
 package org.example.flashmindbackend.service;
 
-// ✅ IMPORTS RESEND CORRECTS
-import com.resend.Resend;
-import com.resend.core.exception.ResendException;
-import com.resend.services.emails.model.CreateEmailOptions;
-import com.resend.services.emails.model.CreateEmailResponse;
-
-// Imports Spring/Lombok
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.*;
 
 @Slf4j
 @Service
 public class EmailService {
 
-    @Value("${resend.api-key}")
-    private String resendApiKey;
-
-    @Value("${app.frontend-url}")
-    private String frontendUrl;
+    @Value("${brevo.api-key}")
+    private String brevoApiKey;
 
     @Value("${app.base-url}")
     private String baseUrl;
 
-    private Resend getResendClient() {
-        return new Resend(resendApiKey);
-    }
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
+
+    private final RestTemplate restTemplate = new RestTemplate();
 
     public void sendVerificationEmail(String toEmail, String username, String token) {
         try {
-            Resend resend = getResendClient();
-
             String verificationLink = baseUrl + "/api/auth/verify-email?token=" + token;
             String htmlContent = buildModernEmailTemplate(username, verificationLink);
 
-            CreateEmailOptions emailRequest = CreateEmailOptions.builder()
-                    .from("FlashMind <onboarding@resend.dev>")
-                    .to(toEmail)
-                    .subject("✨ Vérifiez votre compte FlashMind")
-                    .html(htmlContent)
-                    .build();
+            sendEmail(toEmail, "✨ Vérifiez votre compte FlashMind", htmlContent);
 
-            CreateEmailResponse response = resend.emails().send(emailRequest);
-
-            log.info("✅ Email de vérification envoyé avec succès à: {} (ID: {})", toEmail, response.getId());
-
-        } catch (ResendException e) {
+            log.info("✅ Email de vérification envoyé à: {}", toEmail);
+        } catch (Exception e) {
             log.error("❌ Erreur lors de l'envoi de l'email de vérification à {}: {}", toEmail, e.getMessage());
             throw new RuntimeException("Erreur lors de l'envoi de l'email de vérification", e);
         }
@@ -54,29 +39,49 @@ public class EmailService {
 
     public void sendPasswordResetEmail(String toEmail, String username, String token) {
         try {
-            Resend resend = getResendClient();
-
             String resetLink = frontendUrl + "/reset-password?token=" + token;
             String htmlContent = buildPasswordResetTemplate(username, resetLink);
 
-            CreateEmailOptions emailRequest = CreateEmailOptions.builder()
-                    .from("FlashMind <onboarding@resend.dev>")
-                    .to(toEmail)
-                    .subject("🔐 Réinitialisation de votre mot de passe FlashMind")
-                    .html(htmlContent)
-                    .build();
+            sendEmail(toEmail, "🔐 Réinitialisation de votre mot de passe FlashMind", htmlContent);
 
-            CreateEmailResponse response = resend.emails().send(emailRequest);
-
-            log.info("✅ Email de réinitialisation envoyé avec succès à: {} (ID: {})", toEmail, response.getId());
-
-        } catch (ResendException e) {
+            log.info("✅ Email de réinitialisation envoyé à: {}", toEmail);
+        } catch (Exception e) {
             log.error("❌ Erreur lors de l'envoi de l'email de réinitialisation à {}: {}", toEmail, e.getMessage());
             throw new RuntimeException("Erreur lors de l'envoi de l'email de réinitialisation", e);
         }
     }
 
-    // 🎨 Templates HTML (gardez vos templates existants)
+    private void sendEmail(String toEmail, String subject, String htmlContent) {
+        String url = "https://api.brevo.com/v3/smtp/email";
+
+        Map<String, Object> email = new HashMap<>();
+        email.put("sender", Map.of(
+                "name", "FlashMind",
+                "email", "flashmindquizz@gmail.com"
+        ));
+        email.put("to", List.of(Map.of(
+                "email", toEmail,
+                "name", toEmail
+        )));
+        email.put("subject", subject);
+        email.put("htmlContent", htmlContent);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("api-key", brevoApiKey);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(email, headers);
+
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
+            log.info("📧 Email envoyé avec succès - Status: {}", response.getStatusCode());
+        } catch (Exception e) {
+            log.error("❌ Erreur API Brevo: {}", e.getMessage());
+            throw new RuntimeException("Erreur lors de l'envoi de l'email", e);
+        }
+    }
+
     private String buildModernEmailTemplate(String username, String verificationLink) {
         return "<!DOCTYPE html>" +
                 "<html lang='fr'>" +

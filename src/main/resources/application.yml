@@ -34,8 +34,8 @@ spring:
           time_zone: UTC
 
   # ✅ CONFIGURATION EMAIL AVEC PORT 465 SSL (pour Render)
-resend:
-  api-key: re_RyPG6B5Q_JyoifafYQZx4mMmN99xLpsQv
+brevo:
+  api-key: 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
 
 app:
   email:
