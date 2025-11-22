@@ -1,5 +1,6 @@
 package org.example.flashmindbackend.service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -12,7 +13,7 @@ import java.util.*;
 @Service
 public class EmailService {
 
-    @Value("${brevo.api-key}")
+    @Value("${brevo.api.key}")
     private String brevoApiKey;
 
     @Value("${app.base-url}")
@@ -35,6 +36,10 @@ public class EmailService {
             log.error("❌ Erreur lors de l'envoi de l'email de vérification à {}: {}", toEmail, e.getMessage());
             throw new RuntimeException("Erreur lors de l'envoi de l'email de vérification", e);
         }
+    }
+    @PostConstruct
+    public void debugBrevo() {
+        System.out.println("🔑 BREVO LOADED = " + brevoApiKey);
     }
 
     public void sendPasswordResetEmail(String toEmail, String username, String token) {

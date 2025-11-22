@@ -33,9 +33,9 @@ spring:
         jdbc:
           time_zone: UTC
 
-  # ✅ CONFIGURATION EMAIL AVEC PORT 465 SSL (pour Render)
 brevo:
-  api-key: ${BREVO_API_KEY}
+  api:
+    key: ${BREVO_API_KEY}
 
 app:
   email:
