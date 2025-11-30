@@ -26,7 +26,7 @@ public class EmailService {
 
     public void sendVerificationEmail(String toEmail, String username, String token) {
         try {
-            String verificationLink = frontendUrl + "/verify-email?token=" + token;
+            String verificationLink = frontendUrl + "/email-verified?token=" + token;
             String htmlContent = buildModernEmailTemplate(username, verificationLink);
 
             sendEmail(toEmail, "✨ Vérifiez votre compte FlashMind", htmlContent);
